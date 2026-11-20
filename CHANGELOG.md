@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 — unreleased
+## 0.2.0 — 2026-11-21
 
 - One-click updates (F24–F31, Decision S12): the update API with the owner's password, a Linux helper (systemd path, service and timer) and a Docker updater container; signed releases only (Sigstore, exact release.yml@tag identity), backup first, health check, automatic way back, crash repair; night updates (off unless turned on); `krnl0 update`.
 - Docker in one command: `docker.sh` and `docker.ps1`, including moving a `docker run` server over with its data and settings; the data volume is external.

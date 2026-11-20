@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-21 — Release 0.2.0
+
+**Type:** Release
+**PRs/Commits:** #12 (merged), release PR on `chore/release-v0.2.0`
+**Files changed:** package.json, package-lock.json, CHANGELOG.md, docs/history/HISTORY.md
+
+**Summary:** Version 0.1.0 → 0.2.0: one-click updates, Docker in one command, releases that follow KRNL0. Merging this tags v0.2.0 (`tag.yml`, its first real run) and builds the draft; the owner's Publish ships it. The website inside stays KRNL0 0.13.0 (`web-version`) until the follow workflow pins 0.14.0.
+
 ## 2026-11-21 — One-click updates, Docker in one command, releases that follow KRNL0
 
 **Type:** Feature
