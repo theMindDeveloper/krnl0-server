@@ -39,8 +39,14 @@ jobs:
       - name: KRNL0 web app (when a version is pinned)
         if: vars.KRNL0_WEB_VERSION != ''
         run: |
-          curl -fsSL -o web.tar.gz "https://github.com/theMindDeveloper/KRNL0/releases/download/v${{ vars.KRNL0_WEB_VERSION }}/krnl0-web-${{ vars.KRNL0_WEB_VERSION }}.tar.gz"
-          tar -xzf web.tar.gz -C web --strip-components=1
+          base="https://github.com/theMindDeveloper/KRNL0/releases/download/v${{ vars.KRNL0_WEB_VERSION }}"
+          name="krnl0-web-${{ vars.KRNL0_WEB_VERSION }}.tar.gz"
+          curl -fsSL -o "$name" "$base/$name"
+          curl -fsSL -o "$name.sha256" "$base/$name.sha256"
+          # The web app is what browsers run: refuse it unless it is exactly what KRNL0 released.
+          sha256sum -c "$name.sha256"
+          tar -xzf "$name" -C web --strip-components=1
+          rm -f "$name" "$name.sha256"
           test -f web/index.html
 
       - name: Linux bundles
