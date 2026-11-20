@@ -8,7 +8,7 @@ Run KRNL0 on your own server — a home lab, a NAS, a Raspberry Pi, a VPS. Choos
 
 Everything is encrypted, nothing is sent anywhere, and your data stays in one folder you own.
 
-> 0.1.0, the first version. Works with the KRNL0 app 0.13 or newer. A step-by-step guide with pictures: [theminddev.com/krnl0/server.html](https://theminddev.com/krnl0/server.html).
+> 0.2.0: updates in one click from the KRNL0 app (0.14 or newer), Docker in one command. Works with the KRNL0 app 0.13 or newer. A step-by-step guide with pictures: [theminddev.com/krnl0/server.html](https://theminddev.com/krnl0/server.html).
 
 ## Install
 

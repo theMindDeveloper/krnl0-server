@@ -73,9 +73,18 @@ fetch "$BASE/$FILE" "$TMP/$FILE" || fail "could not download $FILE"
 say "Checking the download..."
 ( cd "$TMP" && grep " \*\{0,1\}$FILE\$" SHA256SUMS | sha256sum -c - >/dev/null ) || fail "checksum mismatch: the download is damaged or was changed. Nothing was installed."
 
+# Sigstore bundle v0.3 (releases from 0.2.0 on) needs cosign 2.4 or newer; an older one
+# can't read it, so it is skipped with a note rather than read as a bad signature.
+COSIGN_OK=0
 if command -v cosign >/dev/null 2>&1; then
+  cv="$(cosign version 2>/dev/null | sed -n 's/^GitVersion:[[:space:]]*v\{0,1\}\([0-9]*\)\.\([0-9]*\).*/\1 \2/p' | head -n1)"
+  # shellcheck disable=SC2086 # split "major minor" on purpose
+  set -- $cv
+  if [ "${1:-0}" -gt 2 ] || { [ "${1:-0}" -eq 2 ] && [ "${2:-0}" -ge 4 ]; }; then COSIGN_OK=1
+  else say "cosign is older than 2.4: skipping the signature check (the checksum was checked)."; fi
+fi
+if [ "$COSIGN_OK" = "1" ]; then
   if fetch "$BASE/SHA256SUMS.sigstore.json" "$TMP/SHA256SUMS.sigstore.json" 2>/dev/null; then
-    # Sigstore bundle v0.3 (releases from 0.2.0 on; cosign 2.4 or newer).
     cosign verify-blob --new-bundle-format --bundle "$TMP/SHA256SUMS.sigstore.json" \
       --certificate-identity-regexp "^https://github.com/$REPO/\.github/workflows/release\.yml@refs/tags/v" \
       --certificate-oidc-issuer https://token.actions.githubusercontent.com \
