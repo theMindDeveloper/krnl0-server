@@ -48,7 +48,8 @@ export function serverUpdate(check: UpdateInfo, updateDir: string, f: InstallFac
     return { ...base, channel: 'command', command: COMPOSE_UPDATE, commandWindows: null, reason: 'The updater container is not running. Run the command once on the server, or start it: docker compose up -d.' }
   }
   // The helper writes its status as it runs; `sudo krnl0 update` runs without the unit's env.
-  if (!f.inDocker && status?.updater.kind === 'systemd') return { ...base, channel: 'one-click' }
+  // (Its own env wins over looking like Docker: a Linux install can run inside a container or LXC.)
+  if (status?.updater.kind === 'systemd' && (kind === 'systemd' || !f.inDocker)) return { ...base, channel: 'one-click' }
   if (f.inDocker) {
     return { ...base, channel: 'command', command: DOCKER_INSTALL, commandWindows: DOCKER_INSTALL_WINDOWS, reason: 'This server was started with plain docker run. Run this once on the server: it keeps your data and adds the updater, so later updates are one click.' }
   }

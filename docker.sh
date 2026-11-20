@@ -24,7 +24,8 @@ PORT="${KRNL0_PORT:-}"
 
 say() { printf '%s\n' "$*"; }
 fail() { printf 'krnl0: %s\n' "$*" >&2; exit 1; }
-tty_ok() { [ "${KRNL0_YES:-0}" != "1" ] && [ -r /dev/tty ] && [ -w /dev/tty ]; }
+# A terminal we can really open (not just a /dev/tty that exists, as under docker exec without -t).
+tty_ok() { [ "${KRNL0_YES:-0}" != "1" ] && ( : </dev/tty >/dev/tty ) 2>/dev/null; }
 ask_yes() { # ask_yes "question" default(y|n)
   if ! tty_ok; then [ "$2" = "y" ]; return; fi
   if [ "$2" = "y" ]; then printf '%s [Y/n] ' "$1" >/dev/tty; else printf '%s [y/N] ' "$1" >/dev/tty; fi

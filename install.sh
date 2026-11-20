@@ -25,6 +25,9 @@ DATA="/var/lib/krnl0"
 VERSION="${KRNL0_VERSION:-latest}"
 
 say() { printf '%s\n' "$*"; }
+# A terminal we can really open (cloud-init, Ansible or "docker exec" without -t have a
+# /dev/tty that exists but can't be opened).
+has_tty() { ( : </dev/tty >/dev/tty ) 2>/dev/null; }
 fail() { printf 'krnl0 install: %s\n' "$*" >&2; exit 1; }
 
 # ── Checks ────────────────────────────────────────────────────────────────
@@ -136,7 +139,7 @@ say "Installed KRNL0 server $NEW_VERSION."
 FIRST=0
 [ -f "$DATA/config.json" ] || FIRST=1
 
-if [ "$FIRST" = "1" ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+if [ "$FIRST" = "1" ] && has_tty; then
   say ""
   $SUDO /usr/local/bin/krnl0 setup </dev/tty >/dev/tty 2>&1 || say "Setup stopped. Run it any time: sudo krnl0 setup"
 fi
@@ -157,7 +160,7 @@ fi
 if [ -f /etc/systemd/system/krnl0-update.path ]; then
   $SUDO systemctl enable --now krnl0-update.path krnl0-update.timer >/dev/null 2>&1 || true
   AUTO="${KRNL0_AUTO_UPDATE:-}"
-  if [ -z "$AUTO" ] && [ "$FIRST" = "1" ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+  if [ -z "$AUTO" ] && [ "$FIRST" = "1" ] && has_tty; then
     printf 'Update the server by itself at night, signed releases only? [y/N] ' >/dev/tty
     read -r answer </dev/tty || answer=""
     case "$answer" in [Yy]*) AUTO=on ;; *) AUTO=off ;; esac

@@ -109,6 +109,10 @@ describe('how this server updates (F31)', () => {
     rmSync(join(dir, 'status.json'))
     expect(serverUpdate(check, dir, facts({}, false, '/opt/krnl0/current/app/bin/krnl0.js'))).toMatchObject({ channel: 'command', command: LINUX_INSTALL })
   })
+  it('a Linux install inside a container (LXC, docker exec) is still one click', () => {
+    dir = tempDir(); alive('systemd', '2026-11-20T04:00:00Z')
+    expect(serverUpdate(check, dir, facts({ KRNL0_UPDATER: 'systemd' }, true, '/opt/krnl0/current/app/bin/krnl0.js')).channel).toBe('one-click')
+  })
   it('from source: none', () => {
     dir = tempDir()
     expect(serverUpdate(check, dir, facts({}, false, '/home/me/krnl0-server/bin/krnl0.js')).channel).toBe('none')
