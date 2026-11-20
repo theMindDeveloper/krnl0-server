@@ -31,7 +31,8 @@ export const ASSET_CSP = "default-src 'none'; img-src 'self' data:; media-src 's
 
 export function securityHeaders(res: ServerResponse, opts: { hsts: boolean }): void {
   res.setHeader('X-Content-Type-Options', 'nosniff')
-  res.setHeader('Referrer-Policy', 'no-referrer')
+  // same-origin, not no-referrer: a no-referrer page makes browsers send `Origin: null` on its own form posts.
+  res.setHeader('Referrer-Policy', 'same-origin')
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin')

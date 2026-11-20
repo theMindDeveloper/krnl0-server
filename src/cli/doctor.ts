@@ -105,7 +105,7 @@ export async function runDoctor(paths: DataPaths): Promise<Check[]> {
   } else {
     out.push(cfg.trustProxy
       ? { status: 'ok', title: `Behind a reverse proxy, listening on ${cfg.bind}:${cfg.port}` }
-      : { status: 'warn', title: 'Proxy mode without trustProxy', fix: 'krnl0 config set trustProxy on  (so rate limits see real addresses)' })
+      : { status: 'warn', title: 'Proxy mode with trustProxy off', fix: 'krnl0 config set trustProxy on  (browser logins and rate limits need the headers your proxy adds)' })
   }
 
   // Running?

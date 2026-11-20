@@ -74,6 +74,22 @@ describe('setup and login (F2–F5)', () => {
     expect((await server.request('GET', '/', { headers: { Cookie: cookie } })).status).toBe(200)
   })
 
+  it('a real browser form post works (Origin null + Sec-Fetch-Site), a cross-site one does not', async () => {
+    server = await startTestServer()
+    await claim(server)
+    const h = await server.request('GET', '/login')
+    expect(h.headers['referrer-policy']).toBe('same-origin')
+    const form = new URLSearchParams({ password: PASSWORD }).toString()
+    const type = { 'Content-Type': 'application/x-www-form-urlencoded' }
+    const ok = await server.request('POST', '/login', { body: form, headers: { ...type, Origin: 'null', 'Sec-Fetch-Site': 'same-origin' } })
+    expect(ok.status).toBe(303)
+    expect(ok.headers.location).toBe('/')
+    const cross = await server.request('POST', '/login', { body: form, headers: { ...type, Origin: 'null', 'Sec-Fetch-Site': 'cross-site' } })
+    expect(cross.status).toBe(403)
+    const evil = await server.request('POST', '/login', { body: form, headers: { ...type, Origin: 'https://evil.example', 'Sec-Fetch-Site': 'same-origin' } })
+    expect(evil.status).toBe(403)
+  })
+
   it('locks after 5 wrong passwords', async () => {
     server = await startTestServer()
     await claim(server)

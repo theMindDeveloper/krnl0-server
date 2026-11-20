@@ -89,8 +89,9 @@ const first = (v: string | string[] | undefined): string | undefined => (Array.i
 
 export function clientIp(req: IncomingMessage, trustProxy: boolean): string {
   if (trustProxy) {
+    // The LAST entry is the one our proxy added; earlier ones come from the client.
     const fwd = first(req.headers['x-forwarded-for'])
-    const ip = fwd?.split(',')[0]?.trim()
+    const ip = fwd?.split(',').at(-1)?.trim()
     if (ip) return ip
   }
   return req.socket.remoteAddress ?? 'unknown'

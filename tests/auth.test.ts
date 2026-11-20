@@ -84,7 +84,9 @@ describe('setup code (F2)', () => {
     const second = k.current()
     now += 60 * 60_000
     expect(k.consume(second)).toBe(false)
-    expect(announced.length).toBe(2)
+    // The late try printed a fresh code, so the owner finds one in the log.
+    expect(announced.length).toBe(3)
+    expect(k.consume(announced[2] ?? '')).toBe(true)
   })
 })
 

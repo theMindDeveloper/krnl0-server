@@ -16,8 +16,9 @@ describe('config (F1, F7, F19)', () => {
     expect(c.timeZone).toBe('Europe/Berlin')
   })
 
-  it('proxy mode listens on 127.0.0.1 by default', () => {
-    expect(resolveConfig({ tls: { mode: 'proxy' } }).bind).toBe('127.0.0.1')
+  it('proxy mode listens on 127.0.0.1 and trusts the proxy by default', () => {
+    expect(resolveConfig({ tls: { mode: 'proxy' } })).toMatchObject({ bind: '127.0.0.1', trustProxy: true })
+    expect(resolveConfig({}).trustProxy).toBe(false)
   })
 
   it('names the problems in plain words', () => {

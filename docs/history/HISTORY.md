@@ -2,6 +2,22 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-20 — Real-browser forms, setup-code renewal, proxy defaults
+
+**Type:** Bug Fix
+**PRs/Commits:** `fix/browser-forms-and-proxy`
+**Files changed:** src/http/headers.ts, src/http/app.ts, src/http/util.ts, src/config.ts, src/auth/store.ts, tests, docs/requirements/server.md
+
+**Summary:** `Referrer-Policy: no-referrer` made browsers send `Origin: null` on the plain setup and login forms, which the Origin check refused; now `same-origin`, and a form with `Origin: null` passes only with `Sec-Fetch-Site: same-origin`. An expired setup code is renewed and printed on the next try. The client IP comes from the last `X-Forwarded-For` entry (the one the proxy added). `trustProxy` defaults on in proxy mode, so browser writes behind a proxy are not refused.
+
+## 2026-11-20 — CI: smoke-test container name, shellcheck notes
+
+**Type:** Chore
+**PRs/Commits:** 78c7e16
+**Files changed:** .github/workflows/ci.yml, install.sh, packaging/krnl0
+
+**Summary:** The Docker smoke test used a one-letter container name Docker refuses; renamed. `install.sh` lists old versions with `find`; the wrapper's intentional single quotes are marked for shellcheck.
+
 ## 2026-11-20 — Repository started: server core, security, Docker and installer
 
 **Type:** Feature (initial)

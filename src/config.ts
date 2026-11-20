@@ -47,7 +47,7 @@ export interface Config {
   }
   /** Extra names and IPs the self-signed certificate covers (e.g. the host's LAN IP in Docker). */
   hosts: string[]
-  /** Take the client IP and scheme from X-Forwarded-* (proxy mode). */
+  /** Take the client IP and scheme from X-Forwarded-* (default on in proxy mode). */
   trustProxy: boolean
   timeZone: string
   updateCheck: boolean
@@ -136,7 +136,7 @@ export function resolveConfig(file: ConfigFile, env: ConfigFile = {}): Config {
       keyFile: tlsFile.keyFile ?? null,
     },
     hosts: env.hosts ?? file.hosts ?? [],
-    trustProxy: env.trustProxy ?? file.trustProxy ?? false,
+    trustProxy: env.trustProxy ?? file.trustProxy ?? mode === 'proxy',
     timeZone: env.timeZone ?? file.timeZone ?? systemTimeZone(),
     updateCheck: env.updateCheck ?? file.updateCheck ?? true,
     webDir: env.webDir !== undefined ? env.webDir : file.webDir !== undefined ? file.webDir : bundledWebDir(),
