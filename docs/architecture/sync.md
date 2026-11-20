@@ -68,6 +68,11 @@ On start the desktop compares `board.json` with the base: if the `sys` CLI chang
 | Device clocks differ | Order comes only from server revisions. Timer displays use `startedAt`; each client measures its offset to the server clock (hello/pong) and shows a warning above 5 s | Wall clocks never decide a merge |
 | Many quick edits (dragging) | Debounce + one upload in flight; the last state wins locally, intermediate states are never sent | Bounded traffic |
 | Large board | JSON bodies gzip-compressed both ways (typically 5–10× smaller) | Built-in zlib |
+| Board over 20 MB, file over its limit | Refused (413 / 400 invalid); the client pauses only that board, or keeps that file local, with the reason — never a retry loop | Limits are fixed and stated |
+| Server restored from a backup | Revisions go back; on reconnect every client takes the restored version and merges its own unsent edits on top | Catch-up compares revisions, not "newer" |
+| Server certificate changed (self-signed) | The desktop's pinned CA no longer matches: it stops and asks to connect again (fingerprint check) | Pinning is the identity; a mismatch is never retried blindly |
+| A browser page from before a server update | The WebSocket hello is refused; the page says to reload (the server serves the matching website) | Protocol handshake |
+| A web session ends with unsent edits | They stay in the browser's IndexedDB and are sent after the next login; logging out sends them first or asks | Logout waits for the base to match |
 
 ## Speed
 
