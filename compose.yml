@@ -7,8 +7,9 @@
 # By hand:
 #   1. Put this file in a folder, e.g. ~/krnl0
 #   2. Create a .env next to it (see .env.example) — at least KRNL0_HOSTS and TZ
-#   3. docker compose up -d
-#   4. docker compose logs krnl0      shows the address and the setup code
+#   3. docker volume create krnl0-data      (once: your boards live here)
+#   4. docker compose up -d
+#   5. docker compose logs krnl0      shows the address and the setup code
 #
 # Updates: one click in the KRNL0 app (the updater below does it: signed
 # releases only, backup first, automatic way back). By hand:
@@ -118,7 +119,10 @@ services:
 volumes:
   # One name everywhere: `docker run -v krnl0-data:/data` and this file share it.
   # The installer sets KRNL0_VOLUME when an older Compose file named it krnl0_krnl0-data.
+  # External: Compose never creates or deletes it (`docker compose down -v` keeps your boards).
+  # The installer creates it; by hand: docker volume create krnl0-data
   krnl0-data:
+    external: true
     name: ${KRNL0_VOLUME:-krnl0-data}
   krnl0-update:
     name: krnl0-update

@@ -163,6 +163,7 @@ try {
   Write-Host 'Starting KRNL0 (the first time downloads about 100 MB)...'
   Push-Location $Dir
   try {
+    Test-Docker volume create $Volume | Out-Null
     & docker compose pull --quiet
     if ($LASTEXITCODE -ne 0) { Stop-Install 'Downloading the image did not work. Check the internet connection and run this again.' }
     & docker compose up -d --remove-orphans

@@ -142,6 +142,7 @@ chmod 0600 "$DIR/.env"
 # ── Start ─────────────────────────────────────────────────────────────────
 say "Starting KRNL0 (the first time downloads about 100 MB)..."
 cd "$DIR"
+docker volume create "$VOLUME" >/dev/null
 docker compose pull --quiet
 docker compose up -d --remove-orphans
 

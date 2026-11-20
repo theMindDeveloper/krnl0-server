@@ -28,7 +28,7 @@ irm https://github.com/theMindDeveloper/krnl0-server/releases/latest/download/do
 
 It checks Docker, writes `~/krnl0/compose.yml` and `.env` (your address and time zone), starts KRNL0 and its updater, and prints the address and a one-time **setup code**. Open the address, click past the browser's warning once, enter the code and choose a password. A server you started with `docker run` moves over with its data. Run it again any time; it keeps your data and settings.
 
-By hand: [`compose.yml`](compose.yml) and [`.env.example`](.env.example) (save as `.env`), then `docker compose up -d`.
+By hand: [`compose.yml`](compose.yml) and [`.env.example`](.env.example) (save as `.env`), then `docker volume create krnl0-data` and `docker compose up -d`.
 
 ### Linux without Docker
 
