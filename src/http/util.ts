@@ -1,5 +1,31 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { gunzipSync, gzipSync } from 'node:zlib'
 import type { ZodType } from 'zod'
+
+/** The request each response answers, so replies can honour Accept-Encoding. */
+export const requestOf = new WeakMap<ServerResponse, IncomingMessage>()
+
+const GZIP_MIN_BYTES = 1024
+
+/** Sends JSON text, gzip-compressed when the client accepts it and it is worth it (Decision S11). */
+export function sendJsonText(res: ServerResponse, status: number, text: string): void {
+  const req = requestOf.get(res)
+  const accepts = String(req?.headers['accept-encoding'] ?? '').toLowerCase().split(',').some((e) => e.trim().split(';')[0] === 'gzip')
+  res.statusCode = status
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-store')
+  res.setHeader('Vary', 'Accept-Encoding')
+  const raw = Buffer.from(text, 'utf8')
+  if (accepts && raw.length >= GZIP_MIN_BYTES) {
+    const zipped = gzipSync(raw, { level: 6 })
+    res.setHeader('Content-Encoding', 'gzip')
+    res.setHeader('Content-Length', zipped.length)
+    res.end(zipped)
+    return
+  }
+  res.setHeader('Content-Length', raw.length)
+  res.end(raw)
+}
 
 export class HttpError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly extra: Record<string, unknown> = {}) {
@@ -8,12 +34,7 @@ export class HttpError extends Error {
 }
 
 export function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  const text = JSON.stringify(body)
-  res.statusCode = status
-  res.setHeader('Content-Type', 'application/json; charset=utf-8')
-  res.setHeader('Cache-Control', 'no-store')
-  res.setHeader('Content-Length', Buffer.byteLength(text))
-  res.end(text)
+  sendJsonText(res, status, JSON.stringify(body))
 }
 
 export function sendError(res: ServerResponse, err: HttpError): void {
@@ -43,7 +64,20 @@ export function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
       }
       chunks.push(c)
     })
-    req.on('end', () => { if (!done) { done = true; resolve(Buffer.concat(chunks)) } })
+    req.on('end', () => {
+      if (done) return
+      done = true
+      const buf = Buffer.concat(chunks)
+      const encoding = String(req.headers['content-encoding'] ?? '').toLowerCase()
+      if (encoding === '' || encoding === 'identity') { resolve(buf); return }
+      if (encoding !== 'gzip') { reject(new HttpError(415, 'encoding', 'Only gzip bodies are accepted.')); return }
+      // The limit applies after decompression too (a small zip bomb is still refused).
+      try { resolve(gunzipSync(buf, { maxOutputLength: limit })) } catch (err) {
+        reject((err as NodeJS.ErrnoException).code === 'ERR_BUFFER_TOO_LARGE' || err instanceof RangeError
+          ? new HttpError(413, 'too-large', 'The request is too large.')
+          : new HttpError(400, 'bad-gzip', 'The body is not valid gzip.'))
+      }
+    })
     req.on('error', (e) => { if (!done) { done = true; reject(e) } })
   })
 }

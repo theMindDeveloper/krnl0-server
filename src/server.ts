@@ -128,12 +128,15 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     ].join('\n'))
   })
   const updates = new UpdateChecker(paths, cfg.updateCheck, opts.fetchFn)
+  const docs = new DocStore(paths.docs, broadcast)
+  const swept = docs.sweep()
+  if (swept > 0) log.warn('Removed document bodies left by an interrupted write', { files: swept })
   const ctx: AppContext = {
     cfg,
     paths,
     auth,
     setup,
-    docs: new DocStore(paths.docs, broadcast),
+    docs,
     timelog: new TimelogStore(paths.timelog, broadcast),
     assets: new AssetStore(paths.assets, broadcast),
     tls: () => tls.info(),

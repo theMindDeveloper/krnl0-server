@@ -26,7 +26,7 @@ import { PROTOCOL, VERSION } from '../version.js'
 import { log } from '../log.js'
 import { ASSET_CSP, securityHeaders } from './headers.js'
 import { homeWithoutWebBuild, loginPage, noticePage, setupPage } from './pages.js'
-import { bearer, clientIp, cookie, HttpError, ownOrigin, readForm, readJsonBody, sendError, sendJson } from './util.js'
+import { bearer, clientIp, cookie, HttpError, ownOrigin, readForm, readJsonBody, requestOf, sendError, sendJson, sendJsonText } from './util.js'
 
 export const SESSION_COOKIE = '__Host-krnl0'
 export const CSRF_HEADER = 'x-krnl0-csrf'
@@ -148,6 +148,7 @@ export function createApp(ctx: AppContext): {
       appSync: cfg.appSync,
       needsSetup: !auth.hasOwner(),
       timeZone: cfg.timeZone,
+      time: Date.now(),
       tls: { mode: t.mode, fingerprint: t.fingerprint },
     }
   }
@@ -264,11 +265,7 @@ export function createApp(ctx: AppContext): {
             throw new HttpError(404, meta?.deleted ? 'deleted' : 'not-found', meta?.deleted ? 'This document was deleted.' : 'No such document.', { rev: meta?.rev ?? 0 })
           }
           const text = `{"name":${JSON.stringify(a)},"rev":${got.meta.rev},"schemaVersion":${JSON.stringify(got.meta.schemaVersion)},"updatedAt":${JSON.stringify(got.meta.updatedAt)},"body":${got.text}}`
-          res.statusCode = 200
-          res.setHeader('Content-Type', 'application/json; charset=utf-8')
-          res.setHeader('Cache-Control', 'no-store')
-          res.end(text)
-          return
+          return sendJsonText(res, 200, text)
         }
         if (method === 'PUT') {
           const body = await readJsonBody(req, putDocBody, MAX_DOC_BYTES + 4096)
@@ -479,6 +476,7 @@ export function createApp(ctx: AppContext): {
   // ── Entry points ─────────────────────────────────────────────────────────
 
   const handle = (req: IncomingMessage, res: ServerResponse): void => {
+    requestOf.set(res, req)
     // HSTS only for our own publicly trusted certificate; in proxy mode the proxy decides (Decision S3).
     securityHeaders(res, { hsts: ctx.tls().trusted && ctx.tls().secure })
     let url: URL

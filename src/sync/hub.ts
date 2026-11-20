@@ -75,7 +75,7 @@ export class SyncHub {
         }
         conn.ready = true
         clearTimeout(helloTimer)
-        this.send(ws, { type: 'hello', protocol: PROTOCOL, version: VERSION, connectionId: conn.id, timeZone: this.info().timeZone })
+        this.send(ws, { type: 'hello', protocol: PROTOCOL, version: VERSION, connectionId: conn.id, timeZone: this.info().timeZone, serverTime: Date.now() })
         return
       }
       const ping = z.object({ type: z.literal('ping') }).safeParse(msg)

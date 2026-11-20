@@ -1,8 +1,13 @@
 // Documents with revisions (F9, Decisions S1, S6). The server never reads a
 // document beyond its top-level `schemaVersion`.
 //
-//   <docs>/<file>.json        the body as the client sent it
-//   <docs>/<file>.meta.json   { rev, schemaVersion, updatedAt, size, deleted }
+//   <docs>/<file>.r<rev>.json  the body of revision <rev>, as the client sent it
+//   <docs>/<file>.meta.json    { rev, schemaVersion, updatedAt, size, deleted }
+//
+// A write is one atomic step (Decision S11): the new body is written under its
+// own revision's name first, then the meta pointer is replaced. A crash between
+// the two leaves the old meta pointing at the old body — never a new body under
+// an old revision. The previous body is removed afterwards.
 //
 // A deleted document keeps its meta as a tombstone, so a client that was
 // offline learns about the delete instead of bringing the document back.
@@ -52,7 +57,9 @@ export class DocStore {
     ensureDir(dir)
   }
 
-  private bodyPath(name: string): string { return join(this.dir, `${fileOf(name)}.json`) }
+  private bodyPath(name: string, rev: number): string { return join(this.dir, `${fileOf(name)}.r${rev}.json`) }
+  /** Before revision-named bodies (not released, kept for safety). */
+  private legacyBodyPath(name: string): string { return join(this.dir, `${fileOf(name)}.json`) }
   private metaPath(name: string): string { return join(this.dir, `${fileOf(name)}.meta.json`) }
 
   meta(name: string): DocMeta | null {
@@ -78,9 +85,11 @@ export class DocStore {
   getText(name: string): { meta: DocMeta; text: string } | null {
     const meta = this.meta(name)
     if (!meta || meta.deleted) return null
-    const p = this.bodyPath(name)
-    if (!existsSync(p)) return null
-    return { meta, text: readFileSync(p, 'utf8') }
+    const p = this.bodyPath(name, meta.rev)
+    if (existsSync(p)) return { meta, text: readFileSync(p, 'utf8') }
+    const legacy = this.legacyBodyPath(name)
+    if (existsSync(legacy)) return { meta, text: readFileSync(legacy, 'utf8') }
+    return null
   }
 
   private current(name: string): { rev: number; body: unknown; deleted: boolean } {
@@ -113,8 +122,9 @@ export class DocStore {
         return { ok: false, reason: 'schema', storedSchemaVersion: stored } satisfies PutResult
       }
       const next = rev + 1
-      writeFileAtomic(this.bodyPath(name), text)
+      writeFileAtomic(this.bodyPath(name, next), text)
       writeJsonAtomic(this.metaPath(name), { rev: next, schemaVersion: incomingSv, updatedAt: this.now().toISOString(), size: Buffer.byteLength(text) } satisfies DocMeta)
+      this.removeBodiesExcept(name, next)
       this.onChange({ kind: 'doc', name, rev: next, deleted: false, by })
       return { ok: true, rev: next } satisfies PutResult
     })
@@ -130,10 +140,44 @@ export class DocStore {
         return { ok: false, reason: 'conflict', rev: cur.rev, body: cur.body, deleted: cur.deleted } satisfies DeleteResult
       }
       const next = meta.rev + 1
-      rmSync(this.bodyPath(name), { force: true })
+      // Tombstone first, then remove the bodies: a crash in between leaves a
+      // deleted document with a stray file, never a live one without a body.
       writeJsonAtomic(this.metaPath(name), { rev: next, schemaVersion: meta.schemaVersion, updatedAt: this.now().toISOString(), size: 0, deleted: true } satisfies DocMeta)
+      this.removeBodiesExcept(name, -1)
       this.onChange({ kind: 'doc', name, rev: next, deleted: true, by })
       return { ok: true, rev: next } satisfies DeleteResult
     })
+  }
+
+  /** Removes every body file of a document except revision `keep` (best effort). */
+  private removeBodiesExcept(name: string, keep: number): void {
+    const prefix = `${fileOf(name)}.`
+    let files: string[] = []
+    try { files = readdirSync(this.dir) } catch { return }
+    for (const f of files) {
+      if (!f.startsWith(prefix) || f.endsWith('.meta.json') || f.endsWith('.tmp')) continue
+      const rest = f.slice(prefix.length)
+      const m = /^r(\d+)\.json$/.exec(rest)
+      const isLegacy = rest === 'json'
+      if ((m && Number(m[1]) !== keep) || isLegacy) rmSync(join(this.dir, f), { force: true })
+    }
+  }
+
+  /** On start: remove bodies written by a crash before their meta flipped. */
+  sweep(): number {
+    let removed = 0
+    let files: string[] = []
+    try { files = readdirSync(this.dir) } catch { return 0 }
+    for (const f of files) {
+      const m = /^(.+)\.r(\d+)\.json$/.exec(f)
+      if (!m) continue
+      const name = nameOf(m[1] ?? '')
+      const meta = DOC_NAME.test(name) ? this.meta(name) : null
+      if (!meta || meta.deleted || meta.rev !== Number(m[2])) {
+        rmSync(join(this.dir, f), { force: true })
+        removed++
+      }
+    }
+    return removed
   }
 }
