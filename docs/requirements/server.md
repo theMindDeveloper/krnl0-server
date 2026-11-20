@@ -57,7 +57,7 @@ The server has **no terminal, no AI and no board CLI** for the website (owner de
 | NF5 | Security headers on every response: CSP without inline scripts, `frame-ancestors 'none'`, `nosniff`, `Referrer-Policy: same-origin` (no-referrer would make browsers send `Origin: null` on our own forms), a restrictive `Permissions-Policy`, COOP/CORP same-origin. HSTS only with a publicly trusted certificate of our own (`files`); the proxy decides in `proxy` mode (Caddy in the `domain` profile sends it); never in `self-signed` mode. |
 | NF6 | Request bodies have limits (JSON 20 MB, assets as F12); WebSocket messages are capped at 64 KB. |
 | NF7 | Logs never contain board content, passwords, tokens, session ids or recovery codes. |
-| NF8 | No outgoing connection except the update check (switchable). No telemetry. (Caddy, when the owner adds it, talks to Let's Encrypt.) |
+| NF8 | No outgoing connection except the update check (switchable; off also stops night updates) and, while an update runs, the updater's downloads: GitHub Releases, the image registry and Sigstore's trust root and transparency log. No telemetry. (Caddy, when the owner adds it, talks to Let's Encrypt.) |
 | NF9 | Each checkout uses its own data folder and port in development. |
 | NF11 | The privileged side (root helper, Docker updater) reads from server-writable places only *whether* to act (a request, auto on/off), never *what* to install or from where. It never follows links or writes as root in the server's data folder. |
 | NF12 | An update never loses data: backup first, health check after, automatic way back, and the backup kept. |

@@ -64,7 +64,7 @@ export async function updaterMain(args: string[]): Promise<number> {
   if (what === 'docker') {
     const updateDir = process.env.KRNL0_UPDATE_DIR ?? '/update'
     const u = new DockerUpdater(socketApi(process.env.KRNL0_DOCKER_SOCKET ?? '/var/run/docker.sock'), {
-      updateDir, healthWaitMs: 90_000, autoDefault: process.env.KRNL0_AUTO_UPDATE === 'on', now: () => new Date(), sleep,
+      updateDir, healthWaitMs: 90_000, autoDefault: process.env.KRNL0_AUTO_UPDATE === 'on', checkOn: process.env.KRNL0_UPDATE_CHECK !== 'off', now: () => new Date(), sleep,
     }, defaultDeps(mkdtempSync(join(tmpdir(), 'krnl0-tuf-'))), VERSION)
     say(`KRNL0 updater ${VERSION}: watching ${updateDir}`)
     for (;;) {

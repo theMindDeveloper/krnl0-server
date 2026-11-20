@@ -43,10 +43,12 @@ export function serverUpdate(check: UpdateInfo, updateDir: string, f: InstallFac
     if (tag !== 'latest' && tag !== '') {
       return { ...base, channel: 'command', command: COMPOSE_UPDATE, commandWindows: null, reason: `This server is pinned to ${tag} (KRNL0_VERSION in ~/krnl0/.env). Change it there, then run the command.` }
     }
-    if (status?.updater.kind === 'docker' && aliveFor(3 * 60_000)) return { ...base, channel: 'one-click' }
+    // Alive: a heartbeat in the last 3 minutes, or an update running (a slow pull) in the last 45.
+    if (status?.updater.kind === 'docker' && (aliveFor(3 * 60_000) || (status.job.state === 'running' && aliveFor(45 * 60_000)))) return { ...base, channel: 'one-click' }
     return { ...base, channel: 'command', command: COMPOSE_UPDATE, commandWindows: null, reason: 'The updater container is not running. Run the command once on the server, or start it: docker compose up -d.' }
   }
-  if (kind === 'systemd' && status?.updater.kind === 'systemd') return { ...base, channel: 'one-click' }
+  // The helper writes its status as it runs; `sudo krnl0 update` runs without the unit's env.
+  if (!f.inDocker && status?.updater.kind === 'systemd') return { ...base, channel: 'one-click' }
   if (f.inDocker) {
     return { ...base, channel: 'command', command: DOCKER_INSTALL, commandWindows: DOCKER_INSTALL_WINDOWS, reason: 'This server was started with plain docker run. Run this once on the server: it keeps your data and adds the updater, so later updates are one click.' }
   }

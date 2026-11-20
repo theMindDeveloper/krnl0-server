@@ -20,7 +20,7 @@ set -eu
 REPO="theMindDeveloper/krnl0-server"
 BASE="https://github.com/$REPO/releases/latest/download"
 DIR="${KRNL0_DIR:-$HOME/krnl0}"
-PORT="${KRNL0_PORT:-8443}"
+PORT="${KRNL0_PORT:-}"
 
 say() { printf '%s\n' "$*"; }
 fail() { printf 'krnl0: %s\n' "$*" >&2; exit 1; }
@@ -66,10 +66,23 @@ done
 
 # ── Your data: keep the volume a server already uses ──────────────────────
 VOLUME="krnl0-data"
+OLD_PORT=""; OLD_HOSTS=""; OLD_TZ=""
 if docker container inspect krnl0 >/dev/null 2>&1; then
   project="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' krnl0 2>/dev/null || true)"
   used="$(docker inspect -f '{{ range .Mounts }}{{ if eq .Destination "/data" }}{{ .Name }}{{ end }}{{ end }}' krnl0 2>/dev/null || true)"
+  mtype="$(docker inspect -f '{{ range .Mounts }}{{ if eq .Destination "/data" }}{{ .Type }}{{ end }}{{ end }}' krnl0 2>/dev/null || true)"
+  if [ "$mtype" = "bind" ]; then
+    src="$(docker inspect -f '{{ range .Mounts }}{{ if eq .Destination "/data" }}{{ .Source }}{{ end }}{{ end }}' krnl0)"
+    say "Your server keeps its data in the folder $src, not in a Docker volume."
+    say "Copy it into the volume once (the old server stops first), then run this again:"
+    say "  docker stop krnl0 && docker run --rm -v \"$src\":/from:ro -v krnl0-data:/to alpine sh -c 'cp -a /from/. /to/ && chown -R 1000:1000 /to'"
+    fail "Stopped. Nothing was changed."
+  fi
   if [ -n "$used" ]; then VOLUME="$used"; fi
+  # Keep what the old server was reached by: its port, address and time zone.
+  OLD_PORT="$(docker port krnl0 8443/tcp 2>/dev/null | head -n1 | sed 's/.*://')"
+  OLD_HOSTS="$(docker inspect -f '{{ range .Config.Env }}{{ println . }}{{ end }}' krnl0 2>/dev/null | sed -n 's/^KRNL0_HOSTS=//p' | head -n1)"
+  OLD_TZ="$(docker inspect -f '{{ range .Config.Env }}{{ println . }}{{ end }}' krnl0 2>/dev/null | sed -n 's/^TZ=//p' | head -n1)"
   if [ "$project" != "krnl0" ]; then
     say ""
     say "A KRNL0 server is already running here (data in the volume $VOLUME)."
@@ -83,13 +96,14 @@ elif docker volume inspect krnl0_krnl0-data >/dev/null 2>&1 && ! docker volume i
 fi
 
 # ── Address, time zone, night updates ─────────────────────────────────────
-HOSTS="${KRNL0_HOSTS:-}"
+if [ -z "$PORT" ]; then PORT="${OLD_PORT:-8443}"; fi
+HOSTS="${KRNL0_HOSTS:-$OLD_HOSTS}"
 if [ -z "$HOSTS" ]; then
   if command -v ip >/dev/null 2>&1; then HOSTS="$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -n1)"; fi
   if [ -z "$HOSTS" ] && command -v ipconfig >/dev/null 2>&1; then HOSTS="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"; fi
   if [ -z "$HOSTS" ] && command -v hostname >/dev/null 2>&1; then HOSTS="$(hostname -I 2>/dev/null | cut -d' ' -f1 || true)"; fi
 fi
-ZONE="${TZ:-}"
+ZONE="${TZ:-$OLD_TZ}"
 if [ -z "$ZONE" ] && command -v timedatectl >/dev/null 2>&1; then ZONE="$(timedatectl show -p Timezone --value 2>/dev/null || true)"; fi
 if [ -z "$ZONE" ] && [ -f /etc/timezone ]; then ZONE="$(head -n1 /etc/timezone)"; fi
 if [ -z "$ZONE" ] && [ -L /etc/localtime ]; then ZONE="$(readlink /etc/localtime | sed 's|.*zoneinfo/||')"; fi
@@ -97,7 +111,7 @@ if [ -z "$ZONE" ] && [ -L /etc/localtime ]; then ZONE="$(readlink /etc/localtime
 AUTO="${KRNL0_AUTO_UPDATE:-}"
 if [ -z "$AUTO" ]; then
   if [ -f "$DIR/.env" ] && grep -q '^KRNL0_AUTO_UPDATE=' "$DIR/.env"; then AUTO="$(sed -n 's/^KRNL0_AUTO_UPDATE=//p' "$DIR/.env" | head -n1)"
-  elif ask_yes "Update the server by itself at night (04:00), signed releases only?" y; then AUTO="on"
+  elif ask_yes "Update the server by itself at night (04:00), signed releases only?" n; then AUTO="on"
   else AUTO="off"; fi
 fi
 SOCKET=""

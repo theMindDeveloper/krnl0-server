@@ -75,7 +75,8 @@ say "Checking the download..."
 
 if command -v cosign >/dev/null 2>&1; then
   if fetch "$BASE/SHA256SUMS.sigstore.json" "$TMP/SHA256SUMS.sigstore.json" 2>/dev/null; then
-    cosign verify-blob --bundle "$TMP/SHA256SUMS.sigstore.json" \
+    # Sigstore bundle v0.3 (releases from 0.2.0 on; cosign 2.4 or newer).
+    cosign verify-blob --new-bundle-format --bundle "$TMP/SHA256SUMS.sigstore.json" \
       --certificate-identity-regexp "^https://github.com/$REPO/\.github/workflows/release\.yml@refs/tags/v" \
       --certificate-oidc-issuer https://token.actions.githubusercontent.com \
       "$TMP/SHA256SUMS" >/dev/null 2>&1 || fail "the release signature does not match. Nothing was installed."

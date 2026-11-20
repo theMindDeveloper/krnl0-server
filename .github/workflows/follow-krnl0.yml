@@ -63,9 +63,12 @@ jobs:
           LATEST: ${{ steps.check.outputs.latest }}
           NEXT: ${{ steps.prep.outputs.next }}
         run: |
-          # The owner is the author of every commit (AGENTS.md rule 1): take the name and address of main's last commit.
-          git config user.name "$(git log -1 --format=%an)"
-          git config user.email "$(git log -1 --format=%ae)"
+          # The owner is the author of every commit (AGENTS.md rule 1): the newest human author on main
+          # (never dependabot or GitHub's own merge identity).
+          author="$(git log -50 --format='%an|%ae' | grep -v '\[bot\]' | grep -v '^GitHub|' | head -n1)"
+          test -n "$author" || { echo "No human author found on main"; exit 1; }
+          git config user.name "${author%%|*}"
+          git config user.email "${author#*|}"
           branch="chore/follow-krnl0-$LATEST"
           git switch -c "$branch"
           git add web-version package.json package-lock.json CHANGELOG.md "docs/releases/v$NEXT.md" docs/history/HISTORY.md

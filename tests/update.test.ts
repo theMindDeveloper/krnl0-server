@@ -322,7 +322,7 @@ function dockerWorld(opts: { newBroken?: boolean } = {}) {
     },
   }
   const g = fakeGithub('0.2.0')
-  const u = new DockerUpdater(api, { updateDir: dir, healthWaitMs: 30, autoDefault: false, now: () => new Date('2026-11-21T10:00:00Z'), sleep: async () => { /* free */ } }, g.deps, '0.1.0')
+  const u = new DockerUpdater(api, { updateDir: dir, healthWaitMs: 30, autoDefault: false, checkOn: true, now: () => new Date('2026-11-21T10:00:00Z'), sleep: async () => { /* free */ } }, g.deps, '0.1.0')
   const byName = (name: string) => [...containers.values()].find((c) => c.Name === `/${name}`)
   return { dir, u, containers, byName, pulled, add }
 }

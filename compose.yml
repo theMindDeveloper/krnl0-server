@@ -61,13 +61,17 @@ services:
     container_name: krnl0-updater
     command: ["updater", "docker"]
     restart: unless-stopped
-    user: "0:0"   # the Docker socket belongs to root
+    # Root for the Docker socket; group 1000 (the server's "node" group) for the
+    # krnl0-update volume — with no capabilities, root can't bypass file permissions.
+    user: "0:1000"
     labels:
       krnl0.role: updater
     environment:
       TZ: ${TZ:-UTC}
       KRNL0_UPDATE_DIR: /update
       KRNL0_AUTO_UPDATE: ${KRNL0_AUTO_UPDATE:-off}
+      # Off here also stops night updates (the server's update check is off too).
+      KRNL0_UPDATE_CHECK: ${KRNL0_UPDATE_CHECK:-on}
     volumes:
       - krnl0-update:/update
       - ${KRNL0_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock

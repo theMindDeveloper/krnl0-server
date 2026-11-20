@@ -105,6 +105,9 @@ export class LinuxUpdater {
   }
 
   async autoOn(): Promise<boolean> {
+    // The owner's update check off also stops night updates.
+    const cfg = await this.readAsKrnl0(join(this.o.data, 'config.json'))
+    try { if (z.object({ updateCheck: z.boolean() }).partial().parse(JSON.parse(cfg ?? '{}')).updateCheck === false) return false } catch { /* no config yet */ }
     const raw = await this.readAsKrnl0(join(this.updateDir, 'settings.json'))
     if (raw === null) return this.o.autoDefault
     try { return z.object({ auto: z.boolean() }).parse(JSON.parse(raw)).auto } catch { return this.o.autoDefault }

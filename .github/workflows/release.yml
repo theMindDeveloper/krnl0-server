@@ -95,8 +95,14 @@ jobs:
           cosign sign-blob --yes --new-bundle-format --bundle out/SHA256SUMS.sigstore.json out/SHA256SUMS
           cosign sign --yes "${IMAGE}@${{ steps.image.outputs.digest }}"
 
-      - name: Updaters can verify it (the same code they run)
-        run: node bin/krnl0.js updater verify out "v$VERSION"
+      - name: Updaters and install.sh can verify it (the same checks they run)
+        run: |
+          node bin/krnl0.js updater verify out "v$VERSION"
+          # The exact cosign command in install.sh:
+          cosign verify-blob --new-bundle-format --bundle out/SHA256SUMS.sigstore.json \
+            --certificate-identity-regexp "^https://github.com/theMindDeveloper/krnl0-server/\.github/workflows/release\.yml@refs/tags/v" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            out/SHA256SUMS
 
       - name: Draft release
         uses: softprops/action-gh-release@v2

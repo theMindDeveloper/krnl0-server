@@ -22,7 +22,8 @@ export function socketApi(socketPath = '/var/run/docker.sock'): DockerApi {
   return {
     call: (method, path, body, timeoutMs = 120_000) => new Promise((resolve, reject) => {
       const data = body === undefined ? undefined : Buffer.from(JSON.stringify(body))
-      const req = http.request({ socketPath, path: `/v1.41${path}`, method, headers: data ? { 'Content-Type': 'application/json', 'Content-Length': data.length } : {}, timeout: timeoutMs }, (res) => {
+      // Unversioned paths: the engine's own API version (new engines refuse old fixed versions).
+      const req = http.request({ socketPath, path, method, headers: data ? { 'Content-Type': 'application/json', 'Content-Length': data.length } : {}, timeout: timeoutMs }, (res) => {
         const parts: Buffer[] = []
         res.on('data', (c: Buffer) => parts.push(c))
         res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(parts) }))
@@ -41,6 +42,8 @@ export interface DockerOptions {
   updateDir: string
   healthWaitMs: number
   autoDefault: boolean
+  /** KRNL0_UPDATE_CHECK=off: no night updates either (the owner's request still works). */
+  checkOn: boolean
   now: () => Date
   sleep: (ms: number) => Promise<void>
 }
@@ -272,7 +275,7 @@ export class DockerUpdater {
     const auto = readAuto(this.o.updateDir, this.o.autoDefault)
     const now = this.o.now()
     const nightKey = now.toISOString().slice(0, 10)
-    const nightly = auto && !requested && now.getHours() === 4 && this.lastNight !== nightKey
+    const nightly = auto && this.o.checkOn && !requested && now.getHours() === 4 && this.lastNight !== nightKey
     if (!requested && !nightly) { this.heartbeat(); return }
     if (nightly) this.lastNight = nightKey
     let v: VerifiedRelease | null
@@ -283,10 +286,17 @@ export class DockerUpdater {
       return
     }
     if (!v) { if (requested) await this.setJob({ state: 'done', step: null, message: 'Your server already runs the newest version.' }); return }
-    await this.apply(v, nightly).catch(async (err: unknown) => {
-      await this.setJob({ state: 'failed', step: null, message: err instanceof Error ? err.message : String(err) })
-      await this.recover().catch(() => { /* next tick */ })
-    })
+    // A pull can take minutes: keep the heartbeat going so the app doesn't think the updater died.
+    const beat = setInterval(() => this.heartbeat(), 30_000)
+    beat.unref?.()
+    try {
+      await this.apply(v, nightly).catch(async (err: unknown) => {
+        await this.setJob({ state: 'failed', step: null, message: err instanceof Error ? err.message : String(err) })
+        await this.recover().catch(() => { /* next tick */ })
+      })
+    } finally {
+      clearInterval(beat)
+    }
   }
 
   private lastNight: string | null = null

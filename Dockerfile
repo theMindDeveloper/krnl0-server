@@ -47,7 +47,7 @@ RUN printf '#!/bin/sh\nexec node /app/bin/krnl0.js "$@"\n' > /usr/local/bin/krnl
            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /opt/yarn* /usr/local/bin/yarn /usr/local/bin/yarnpkg \
  && mkdir -p /data /update \
  && chown node:node /data /update \
- && chmod 0700 /data /update
+ && chmod 0700 /data \n && chmod 0770 /update
 
 USER node
 VOLUME ["/data"]

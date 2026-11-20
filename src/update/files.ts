@@ -72,7 +72,8 @@ export function readAuto(dir: string, fallback: boolean): boolean {
 
 export function writeAuto(dir: string, auto: boolean): void {
   mkdirSync(dir, { recursive: true, mode: 0o700 })
-  writeJsonAtomic(join(dir, 'settings.json'), { auto })
+  // Readable by the updater (Docker: another user in the same group).
+  writeJsonAtomic(join(dir, 'settings.json'), { auto }, 0o644)
 }
 
 export function requestUpdate(dir: string, now: Date = new Date()): void {

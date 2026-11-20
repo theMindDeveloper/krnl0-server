@@ -1,6 +1,7 @@
 #!/bin/sh
 # `krnl0` on a Linux install: runs as the krnl0 user so files keep the right owner.
 export KRNL0_DATA_DIR="${KRNL0_DATA_DIR:-/var/lib/krnl0}"
+export KRNL0_UPDATER=systemd
 NODE=/opt/krnl0/current/node/bin/node
 APP=/opt/krnl0/current/app/bin/krnl0.js
 if [ "$(id -un)" = "krnl0" ]; then

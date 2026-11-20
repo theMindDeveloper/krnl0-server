@@ -63,13 +63,30 @@ try {
 
   # -- Your data: keep the volume a server already uses --------------------
   $Volume = 'krnl0-data'
+  $OldHosts = ''
+  $OldTz = ''
   if (Test-Docker container inspect krnl0) {
     # JSON, not Go templates with quotes: Windows PowerShell drops inner quotes on the way to docker.
     $labels = Get-DockerJson inspect --format '{{json .Config.Labels}}' krnl0
     $mounts = Get-DockerJson inspect --format '{{json .Mounts}}' krnl0
     $project = if ($labels) { [string]$labels.'com.docker.compose.project' } else { '' }
     $used = @($mounts | Where-Object { $_.Destination -eq '/data' } | Select-Object -First 1)
+    if ($used.Count -gt 0 -and $used[0].Type -eq 'bind') {
+      $src = [string]$used[0].Source
+      Write-Host "Your server keeps its data in the folder $src, not in a Docker volume."
+      Write-Host 'Copy it into the volume once (the old server stops first), then run this again:'
+      Write-Host "  docker stop krnl0; docker run --rm -v `"${src}:/from:ro`" -v krnl0-data:/to alpine sh -c 'cp -a /from/. /to/ && chown -R 1000:1000 /to'"
+      Stop-Install 'Stopped. Nothing was changed.'
+    }
     if ($used.Count -gt 0 -and $used[0].Name) { $Volume = [string]$used[0].Name }
+    # Keep what the old server was reached by: its port, address and time zone.
+    $envs = @(Get-DockerJson inspect --format '{{json .Config.Env}}' krnl0)
+    $ports = Get-DockerJson inspect --format '{{json .HostConfig.PortBindings}}' krnl0
+    if (-not $env:KRNL0_PORT -and $ports -and $ports.'8443/tcp') { $p = [string]@($ports.'8443/tcp')[0].HostPort; if ($p) { $Port = $p } }
+    $OldHosts = ($envs | Where-Object { $_ -like 'KRNL0_HOSTS=*' } | Select-Object -First 1)
+    $OldTz = ($envs | Where-Object { $_ -like 'TZ=*' } | Select-Object -First 1)
+    if ($OldHosts) { $OldHosts = $OldHosts.Substring('KRNL0_HOSTS='.Length) }
+    if ($OldTz) { $OldTz = $OldTz.Substring('TZ='.Length) }
     if ($project -ne 'krnl0') {
       Write-Host ''
       Write-Host "A KRNL0 server is already running here (data in the volume $Volume)."
@@ -85,14 +102,14 @@ try {
   }
 
   # -- Address, time zone, night updates -----------------------------------
-  $Hosts = $env:KRNL0_HOSTS
+  $Hosts = if ($env:KRNL0_HOSTS) { $env:KRNL0_HOSTS } else { $OldHosts }
   if (-not $Hosts) {
     try {
       $route = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | Sort-Object RouteMetric | Select-Object -First 1
       $Hosts = (Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 -ErrorAction Stop | Select-Object -First 1).IPAddress
     } catch { $Hosts = '' }
   }
-  $Zone = $env:TZ
+  $Zone = if ($env:TZ) { $env:TZ } else { $OldTz }
   if (-not $Zone) {
     $win = [System.TimeZoneInfo]::Local.Id
     $iana = $null
@@ -122,7 +139,7 @@ try {
     $line = Get-Content $EnvFile | Where-Object { $_ -match '^KRNL0_AUTO_UPDATE=' } | Select-Object -First 1
     if ($line) { $Auto = $line.Substring('KRNL0_AUTO_UPDATE='.Length) }
   }
-  if (-not $Auto) { $Auto = if (Get-Yes 'Update the server by itself at night (04:00), signed releases only?' $true) { 'on' } else { 'off' } }
+  if (-not $Auto) { $Auto = if (Get-Yes 'Update the server by itself at night (04:00), signed releases only?' $false) { 'on' } else { 'off' } }
 
   # -- Write the files -----------------------------------------------------
   New-Item -ItemType Directory -Force -Path $Dir -ErrorAction Stop | Out-Null
