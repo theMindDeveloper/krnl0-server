@@ -25,13 +25,16 @@ The server has **no terminal, no AI and no board CLI** for the website (owner de
 | F10 | **Live changes.** A WebSocket tells every connected client which document, time-log month or asset changed, with its new revision. |
 | F11 | **Time log.** Entries are appended per board and month (`YYYY-MM`) and queried by month range. An entry with an `id` already stored is not stored twice. |
 | F12 | **Assets.** Images and media are uploaded and downloaded by id, with size limits (25 MB images, 500 MB media). SVG and unknown types are never served as active content. |
-| F13 | **Website hosting.** With Website on, the server serves the KRNL0 web build from `webDir` (single-page app). Until a web build is installed, it serves a plain notice page. |
+| F13 | **Website hosting.** With Website on, the server serves the KRNL0 web build from `webDir` (single-page app) to the logged-in owner only. Until a web build is installed, it serves its own notice page ("The server is running"). |
 | F14 | **Version handshake.** `/api/v1/health` and the WebSocket hello carry the server version and protocol number. A client with another protocol major is refused with a message that says which side to update. |
 | F15 | **Backups.** A backup is made every 24 hours and before the server runs a new version for the first time; the last 14 are kept. `krnl0 backup`, `krnl0 backups`, `krnl0 restore <name>` (server stopped). Assets are hard-linked, so backups cost little space. |
 | F16 | **Update check.** Once a day the server asks GitHub Releases for the newest version (switchable off: `KRNL0_UPDATE_CHECK=off`). `krnl0 status` and the API report it; nothing updates by itself unless the owner chose it (Watchtower or a timer). |
 | F17 | **Admin CLI** `krnl0`: `start`, `setup`, `status`, `doctor`, `config get/set`, `fingerprint`, `reset-password`, `2fa enable/disable/status`, `devices list/revoke`, `sessions list/revoke`, `backup`, `backups`, `restore`, `export`, `help <topic>`, `version`. |
 | F18 | **Install, two ways.** (a) One Docker image (amd64 + arm64), one `docker run`, or the `compose.yml`. (b) One command (`install.sh`) that installs a self-contained Linux bundle as a locked-down systemd service, after checking its checksum. |
 | F19 | **Time zone.** The server's time zone is set in setup (`TZ`) and reported to clients, so day boundaries never fall back to UTC by accident. |
+| F21 | **The server's own pages** — setup, login, notices — in the KRNL0 look (designs *Setup* and *PhoneLogin*): phone first, a side panel with the cube, the address, the encryption and the fingerprint from 960 px. No scripts at all (CSP `script-src 'self'`); recovery-code and forgot-password help open in place (`<details>`). Their fonts, icon and picture come from the server itself under `/_k0/` (public, allow-listed names only; nothing else is served there). |
+| F22 | **The web app in a release** is the KRNL0 release's `krnl0-web-<version>.tar.gz` named by `KRNL0_WEB_VERSION`, used only when its SHA-256 matches the `.sha256` KRNL0 published. |
+| F23 | **The terminal look.** On a real terminal `krnl0 setup` asks one boxed question at a time (arrow keys, space, enter; numbers work too), shows the answered steps and the ones to come, and ends with DONE, a QR code of the address, the facts and the doctor's checks. Off a terminal (logs, pipes), with `--yes` or with flags, it is plain text; `NO_COLOR` turns colours off. |
 | F20 | **Your data.** `krnl0 export <folder>` copies every document, time log and asset in plain files. Deleting `/data` removes everything; nothing is kept elsewhere. |
 
 ## Non-Functional Requirements
@@ -150,4 +153,15 @@ Feature: Backups (F15)
     Given 14 backups exist
     When a new backup is made
     Then the oldest is removed and 14 remain
+
+Feature: The server's own pages (F21)
+  Scenario: Login on a phone
+    Given an owner exists
+    When a 390 px wide phone opens "/login"
+    Then it shows "Welcome back.", a password field, a code field and LOG IN, in the bundled fonts, with no script
+  Scenario: Only the page files are public
+    When a browser requests "/_k0/jbm-400.woff2"
+    Then it gets the font without logging in
+    When it requests "/_k0/x.js" or a path that leaves "/_k0/"
+    Then it does not get a file
 ```

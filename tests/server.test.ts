@@ -59,6 +59,21 @@ describe('setup and login (F2–F5)', () => {
     expect((await server.request('POST', '/api/v1/setup', { json: { code, password: PASSWORD } })).status).toBe(409)
   })
 
+  it('page fonts and pictures are public; nothing else under /_k0/ is', async () => {
+    server = await startTestServer()
+    const font = await server.request('GET', '/_k0/jbm-400.woff2')
+    expect(font.status).toBe(200)
+    expect(font.headers['content-type']).toBe('font/woff2')
+    expect((await server.request('GET', '/_k0/cube.webp')).headers['content-type']).toBe('image/webp')
+    for (const bad of ['/_k0/../package.json', '/_k0/%2e%2e/package.json', '/_k0/x.js', '/_k0/', '/_k0/nope.webp']) {
+      // Never served: 404 inside /_k0/, or (a path that leaves it) the page redirect.
+      expect((await server.request('GET', bad)).status, bad).not.toBe(200)
+    }
+    const page = await server.request('GET', '/setup')
+    expect(page.text).toContain('/_k0/cube.webp')
+    expect(page.text).not.toContain('<script')
+  })
+
   it('pages: setup, then login; nothing of the app before login', async () => {
     server = await startTestServer()
     expect((await server.request('GET', '/')).headers.location).toBe('/setup')
@@ -228,5 +243,48 @@ describe('assets and website (F12, F13)', () => {
     expect((await server.request('GET', '/board/today', { headers: h })).text).toContain('<title>KRNL0</title>')
     expect((await server.request('GET', '/%2e%2e/%2e%2e/config.json', { headers: h })).status).toBe(404)
     expect((await server.request('GET', '/..%5c..%5cconfig.json', { headers: h })).status).toBe(404)
+  })
+})
+
+describe('compression (Decision S11)', () => {
+  it('accepts gzip bodies, answers gzip, refuses a zip bomb', async () => {
+    const { gzipSync, gunzipSync } = await import('node:zlib')
+    server = await startTestServer()
+    await claim(server)
+    const d = await pair(server)
+    const auth = { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json', 'Content-Encoding': 'gzip' }
+    const body = { baseRev: 0, body: { schemaVersion: 2, nodes: Array.from({ length: 200 }, (_, i) => ({ id: `n${i}`, title: 'Read chapter 4' })) } }
+    const put = await server.request('PUT', '/api/v1/docs/board:big', { body: gzipSync(Buffer.from(JSON.stringify(body))), headers: auth })
+    expect(put.status).toBe(200)
+    const got = await new Promise<{ enc: string | undefined; json: unknown }>((resolve, reject) => {
+      import('node:https').then(({ default: https }) => {
+        const req = https.request({ host: 'localhost', port: server?.port, path: '/api/v1/docs/board:big', ca: server?.ca, headers: { Authorization: `Bearer ${d.token}`, 'Accept-Encoding': 'gzip' } }, (res) => {
+          const chunks: Buffer[] = []
+          res.on('data', (c: Buffer) => chunks.push(c))
+          res.on('end', () => resolve({ enc: res.headers['content-encoding'], json: JSON.parse(gunzipSync(Buffer.concat(chunks)).toString()) }))
+        })
+        req.on('error', reject)
+        req.end()
+      }, reject)
+    })
+    expect(got.enc).toBe('gzip')
+    expect((got.json as { body: { nodes: unknown[] } }).body.nodes).toHaveLength(200)
+    const bomb = gzipSync(Buffer.alloc(30 * 1024 * 1024, 32))
+    const refused = await server.request('POST', '/api/v1/timelog/b1', { body: bomb, headers: auth })
+    expect(refused.status).toBe(413)
+    const health = await server.request('GET', '/api/v1/health')
+    expect(typeof health.json().time).toBe('number')
+  })
+})
+
+describe('encoded names', () => {
+  it('accepts URL-encoded document names (board%3Ab1)', async () => {
+    server = await startTestServer()
+    await claim(server)
+    const d = await pair(server)
+    const auth = { Authorization: `Bearer ${d.token}` }
+    expect((await server.request('PUT', '/api/v1/docs/board%3Ab1', { json: { baseRev: 0, body: { schemaVersion: 2 } }, headers: auth })).status).toBe(200)
+    expect((await server.request('GET', '/api/v1/docs/board:b1', { headers: auth })).json()).toMatchObject({ name: 'board:b1', rev: 1 })
+    expect((await server.request('GET', '/api/v1/docs/%E0%A4%A', { headers: auth })).status).toBe(400)
   })
 })

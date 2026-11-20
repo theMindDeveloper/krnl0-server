@@ -2,6 +2,22 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-20 — The terminal look: setup, doctor and the start screen
+
+**Type:** Feature
+**PRs/Commits:** `feat/realtime-sync`
+**Files changed:** src/cli/look.ts, src/cli/setup.ts, src/cli/main.ts, src/server.ts, package.json (uqr), tests/look.test.ts, docs
+
+**Summary:** `krnl0 setup` on a real terminal in the owner's mix of the three drafts: the KRNL0 block letters, one boxed question at a time with arrow keys and space (Website / App sync, encryption, the address the certificate names — with Docker and Tailscale said plainly — and the time zone, the owner password), the path of answered steps, and a finish screen with DONE, a QR code of the address to open it on a phone, the facts and the `krnl0 doctor` checks. `krnl0 doctor` and the start screen (with the setup-code card) use the same colours. Logs, pipes, `--yes` and flags keep the plain typed setup. QR codes by `uqr` (MIT, no dependencies). Checked by driving the real setup in a pseudo-terminal and rendering it in xterm.js.
+
+## 2026-11-20 — Designed pages, the web app in releases, sync hardening
+
+**Type:** Feature
+**PRs/Commits:** `feat/realtime-sync`
+**Files changed:** src/http/pages.ts, src/http/app.ts, public/k0/*, Dockerfile, package.json, scripts/bundle.sh, .github/workflows/release.yml, src/store/docs.ts, src/sync/hub.ts, tests, docs
+
+**Summary:** Setup, login and notice pages in the KRNL0 look (designs *Setup*, *PhoneLogin*), still script-free; fonts (OFL), the app icon and the cube are served from `/_k0/` before login (allow-listed). The release bundles the KRNL0 web app only when its SHA-256 matches KRNL0's. Sync hardening found by the KRNL0 simulations: atomic revision-named document writes swept on start, gzip in both directions with an output limit, the server time in the WebSocket hello and pong, `X-KRNL0-Asset` on asset downloads, URL-decoded path segments (`board%3Ab1`). Requirements F21–F22; sync protocol and state machine in `docs/architecture/sync.md` (S11).
+
 ## 2026-11-20 — Real-browser forms, setup-code renewal, proxy defaults
 
 **Type:** Bug Fix

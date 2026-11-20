@@ -16,7 +16,7 @@ This repo is the **self-hosted server for KRNL0**: one program that can serve th
 8. **Every server function has a `krnl0` CLI command** (the server's equivalent of KRNL0's `sys` rule).
 9. **New UI (web pages, the terminal setup look, the phone view) is drafted on the Claude Design canvas first;** the owner picks one before code is written.
 10. **Each checkout/worktree has its own data folder and port** (`npm run dev` derives both from the folder path). Never point a dev server at a real `/data`.
-11. **Releases**: bump `package.json`, tag `vX.Y.Z` on `main`, CI builds the image and bundles and makes a draft release. Never publish, tag or move a tag without the owner's OK. Never reuse a version.
+11. **Releases**: bump `package.json`, tag `vX.Y.Z` on `main`, CI builds the image and bundles and makes a draft release. Never publish, tag or move a tag without the owner's OK. Never reuse a version. The web app inside a release is the KRNL0 release named by the repository variable `KRNL0_WEB_VERSION` (Settings › Variables): set it to the newest KRNL0 version **after** that KRNL0 release is published, so its `krnl0-web-<version>.tar.gz` and `.sha256` can be downloaded and checked.
 
 ---
 

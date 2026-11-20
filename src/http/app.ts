@@ -3,7 +3,8 @@
 
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { extname, join, normalize, resolve, sep } from 'node:path'
+import { dirname, extname, join, normalize, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Duplex } from 'node:stream'
 import { z } from 'zod'
 import type { Config } from '../config.js'
@@ -25,8 +26,8 @@ import type { UpdateChecker } from '../update/check.js'
 import { PROTOCOL, VERSION } from '../version.js'
 import { log } from '../log.js'
 import { ASSET_CSP, securityHeaders } from './headers.js'
-import { homeWithoutWebBuild, loginPage, noticePage, setupPage } from './pages.js'
-import { bearer, clientIp, cookie, HttpError, ownOrigin, readForm, readJsonBody, sendError, sendJson } from './util.js'
+import { homeWithoutWebBuild, loginPage, noticePage, setupPage, type PageFacts } from './pages.js'
+import { bearer, clientIp, cookie, HttpError, ownOrigin, readForm, readJsonBody, requestOf, sendError, sendJson, sendJsonText } from './util.js'
 
 export const SESSION_COOKIE = '__Host-krnl0'
 export const CSRF_HEADER = 'x-krnl0-csrf'
@@ -58,6 +59,10 @@ const loginBody = z.object({ password: passwordField, code: codeField }).strict(
 const pairBody = z.object({ password: passwordField, code: codeField, name: z.string().min(1).max(80), platform: z.string().max(40).default('') }).strict()
 const putDocBody = z.object({ baseRev: z.number().int().min(0), body: z.unknown() }).strict()
 const appendBody = z.object({ entries: z.array(z.object({ month: z.string().regex(MONTH), entry: z.unknown() }).strict()).max(5000) }).strict()
+
+/** The pages' own fonts and pictures (public: the login page needs them before login). */
+const PAGE_ASSETS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'public', 'k0')
+const PAGE_ASSET = /^[a-z0-9-]{1,40}\.(woff2|webp|png|txt)$/
 
 const STATIC_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -148,6 +153,7 @@ export function createApp(ctx: AppContext): {
       appSync: cfg.appSync,
       needsSetup: !auth.hasOwner(),
       timeZone: cfg.timeZone,
+      time: Date.now(),
       tls: { mode: t.mode, fingerprint: t.fingerprint },
     }
   }
@@ -156,7 +162,9 @@ export function createApp(ctx: AppContext): {
 
   async function api(req: IncomingMessage, res: ServerResponse, path: string, query: URLSearchParams): Promise<void> {
     const method = req.method ?? 'GET'
-    const seg = path.split('/').filter(Boolean).slice(2) // after "api", "v1"
+    // Segments are URL-decoded: a client may send board:b1 as board%3Ab1.
+    let seg: string[]
+    try { seg = path.split('/').filter(Boolean).slice(2).map((x) => decodeURIComponent(x)) } catch { throw new HttpError(400, 'bad-path', 'The address could not be read.') }
     const [head, a, b] = seg
     if (!originOk(req)) throw new HttpError(403, 'origin', 'Cross-site requests are refused.')
 
@@ -264,11 +272,7 @@ export function createApp(ctx: AppContext): {
             throw new HttpError(404, meta?.deleted ? 'deleted' : 'not-found', meta?.deleted ? 'This document was deleted.' : 'No such document.', { rev: meta?.rev ?? 0 })
           }
           const text = `{"name":${JSON.stringify(a)},"rev":${got.meta.rev},"schemaVersion":${JSON.stringify(got.meta.schemaVersion)},"updatedAt":${JSON.stringify(got.meta.updatedAt)},"body":${got.text}}`
-          res.statusCode = 200
-          res.setHeader('Content-Type', 'application/json; charset=utf-8')
-          res.setHeader('Cache-Control', 'no-store')
-          res.end(text)
-          return
+          return sendJsonText(res, 200, text)
         }
         if (method === 'PUT') {
           const body = await readJsonBody(req, putDocBody, MAX_DOC_BYTES + 4096)
@@ -351,6 +355,7 @@ export function createApp(ctx: AppContext): {
     res.setHeader('Content-Security-Policy', ASSET_CSP)
     res.setHeader('Cache-Control', 'private, max-age=86400')
     res.setHeader('Accept-Ranges', 'bytes')
+    res.setHeader('X-KRNL0-Asset', `${id}.${found.ext}`)
     if (kind === 'other') res.setHeader('Content-Disposition', `attachment; filename="${id}.${found.ext}"`)
     const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''))
     if (range && (range[1] || range[2])) {
@@ -377,6 +382,23 @@ export function createApp(ctx: AppContext): {
 
   // ── Website (F13) ────────────────────────────────────────────────────────
 
+  /** What the pages say about this server (side panel, footer). */
+  function facts(req: IncomingMessage): PageFacts {
+    const t = ctx.tls()
+    const host = String(req.headers.host ?? '').slice(0, 200)
+    const encryption = t.mode === 'proxy' ? 'by your proxy' : t.mode === 'self-signed' ? 'self-signed' : 'certificate'
+    return { host, encryption, fingerprint: t.fingerprint, website: cfg.website, appSync: cfg.appSync }
+  }
+
+  function pageAsset(res: ServerResponse, name: string): void {
+    const file = join(PAGE_ASSETS_DIR, name)
+    if (!PAGE_ASSET.test(name) || !existsSync(file)) throw new HttpError(404, 'not-found', 'Nothing here.')
+    res.statusCode = 200
+    res.setHeader('Content-Type', STATIC_TYPES[extname(name).toLowerCase()] ?? 'text/plain; charset=utf-8')
+    res.setHeader('Cache-Control', 'public, max-age=86400')
+    createReadStream(file).pipe(res)
+  }
+
   function sendHtml(res: ServerResponse, status: number, html: string): void {
     res.statusCode = status
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
@@ -393,23 +415,23 @@ export function createApp(ctx: AppContext): {
 
   async function website(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
     const method = req.method ?? 'GET'
-    if (!cfg.website) return sendHtml(res, 404, noticePage('Website is off', 'The website is turned off on this KRNL0 server. The desktop app can still sync.'))
+    if (!cfg.website) return sendHtml(res, 404, noticePage('Website is off', 'The website is turned off on this KRNL0 server. The desktop app can still sync.', facts(req)))
 
     if (WRITE_METHODS.has(method) && !formFromOurPage(req)) {
-      return sendHtml(res, 403, noticePage('Refused', 'This form was not sent from this server\'s own page.'))
+      return sendHtml(res, 403, noticePage('Refused', 'This form was not sent from this server\'s own page.', facts(req)))
     }
 
     if (path === '/setup') {
       if (auth.hasOwner()) return redirect(res, '/login')
-      if (method === 'GET') return sendHtml(res, 200, setupPage())
+      if (method === 'GET') return sendHtml(res, 200, setupPage(undefined, facts(req)))
       if (method === 'POST') {
-        if (!ctx.authLimiter.take(ip(req))) return sendHtml(res, 429, setupPage('Too many attempts from this address. Wait 15 minutes.'))
+        if (!ctx.authLimiter.take(ip(req))) return sendHtml(res, 429, setupPage('Too many attempts from this address. Wait 15 minutes.', facts(req)))
         const f = await readForm(req)
         const password = f.get('password') ?? ''
-        if (password !== (f.get('password2') ?? '')) return sendHtml(res, 400, setupPage('The two passwords are not the same.'))
+        if (password !== (f.get('password2') ?? '')) return sendHtml(res, 400, setupPage('The two passwords are not the same.', facts(req)))
         const problem = passwordProblem(password)
-        if (problem) return sendHtml(res, 400, setupPage(problem))
-        if (!ctx.setup.consume(f.get('code') ?? '')) return sendHtml(res, 401, setupPage('Wrong or expired setup code. The server\'s log shows the current one.'))
+        if (problem) return sendHtml(res, 400, setupPage(problem, facts(req)))
+        if (!ctx.setup.consume(f.get('code') ?? '')) return sendHtml(res, 401, setupPage('Wrong or expired setup code. The server\'s log shows the current one (or run krnl0 setup on the server).', facts(req)))
         await auth.setPassword(password)
         log.info('Owner account created', { via: 'setup page' })
         const { token } = auth.createSession(String(req.headers['user-agent'] ?? ''), ip(req))
@@ -420,13 +442,13 @@ export function createApp(ctx: AppContext): {
 
     if (path === '/login') {
       if (!auth.hasOwner()) return redirect(res, '/setup')
-      if (method === 'GET') return sendHtml(res, 200, loginPage())
+      if (method === 'GET') return sendHtml(res, 200, loginPage(undefined, facts(req)))
       if (method === 'POST') {
-        if (!ctx.authLimiter.take(ip(req))) return sendHtml(res, 429, loginPage('Too many attempts from this address. Wait 15 minutes.'))
+        if (!ctx.authLimiter.take(ip(req))) return sendHtml(res, 429, loginPage('Too many attempts from this address. Wait 15 minutes.', facts(req)))
         const f = await readForm(req)
         const code = f.get('code') ?? ''
         const r = await auth.login(f.get('password') ?? '', code || undefined)
-        if (r.kind !== 'ok') return sendHtml(res, r.kind === 'locked' ? 429 : 401, loginPage(loginFailure(r).message))
+        if (r.kind !== 'ok') return sendHtml(res, r.kind === 'locked' ? 429 : 401, loginPage(loginFailure(r).message, facts(req)))
         const { token, session } = auth.createSession(String(req.headers['user-agent'] ?? ''), ip(req))
         res.setHeader('Set-Cookie', sessionCookie(token, 30 * 24 * 3600))
         log.info('Browser logged in', { session: session.id })
@@ -441,7 +463,7 @@ export function createApp(ctx: AppContext): {
       return redirect(res, '/login')
     }
 
-    if (method !== 'GET' && method !== 'HEAD') return sendHtml(res, 405, noticePage('Not allowed', 'This address only shows a page.'))
+    if (method !== 'GET' && method !== 'HEAD') return sendHtml(res, 405, noticePage('Not allowed', 'This address only shows a page.', facts(req)))
 
     // Everything else is the app, for the owner only (nothing is shown before login).
     if (!auth.hasOwner()) return redirect(res, '/setup')
@@ -451,7 +473,7 @@ export function createApp(ctx: AppContext): {
 
   function serveStatic(res: ServerResponse, path: string): void {
     const root = cfg.webDir ? resolve(cfg.webDir) : null
-    if (!root || !existsSync(join(root, 'index.html'))) return sendHtml(res, 200, homeWithoutWebBuild())
+    if (!root || !existsSync(join(root, 'index.html'))) return sendHtml(res, 200, homeWithoutWebBuild(facts(requestOf.get(res) ?? ({ headers: {} } as IncomingMessage))))
     let rel: string
     try { rel = decodeURIComponent(path) } catch { return sendHtml(res, 400, noticePage('Bad address', 'This address could not be read.')) }
     if (rel.includes('\0')) return sendHtml(res, 400, noticePage('Bad address', 'This address could not be read.'))
@@ -479,6 +501,7 @@ export function createApp(ctx: AppContext): {
   // ── Entry points ─────────────────────────────────────────────────────────
 
   const handle = (req: IncomingMessage, res: ServerResponse): void => {
+    requestOf.set(res, req)
     // HSTS only for our own publicly trusted certificate; in proxy mode the proxy decides (Decision S3).
     securityHeaders(res, { hsts: ctx.tls().trusted && ctx.tls().secure })
     let url: URL
@@ -495,6 +518,7 @@ export function createApp(ctx: AppContext): {
         res.end(ca)
         return
       }
+      if (path.startsWith('/_k0/') && (req.method === 'GET' || req.method === 'HEAD')) return pageAsset(res, path.slice(5))
       if (path === '/api' || path.startsWith('/api/')) {
         if (!path.startsWith('/api/v1/')) throw new HttpError(404, 'not-found', 'Unknown API version.')
         return api(req, res, path, url.searchParams)

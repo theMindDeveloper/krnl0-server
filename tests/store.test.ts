@@ -116,3 +116,19 @@ describe('backups (F15)', () => {
     expect(() => restoreBackup(paths, '../../etc')).toThrow(/No backup/)
   })
 })
+
+describe('crash safety (Decision S11)', () => {
+  it('a body written without its meta (crash) is ignored and swept', async () => {
+    const dir = tempDir()
+    const docs = new DocStore(dir)
+    await docs.put('board:b1', 0, { schemaVersion: 2, v: 'committed' })
+    // Simulate a crash after writing revision 2's body but before the meta flipped.
+    writeFileSync(join(dir, 'board%3Ab1.r2.json'), JSON.stringify({ schemaVersion: 2, v: 'half-written' }))
+    const after = new DocStore(dir)
+    expect(JSON.parse(after.getText('board:b1')?.text ?? '{}')).toEqual({ schemaVersion: 2, v: 'committed' })
+    expect(after.sweep()).toBe(1)
+    expect(existsSync(join(dir, 'board%3Ab1.r2.json'))).toBe(false)
+    expect(await after.put('board:b1', 1, { schemaVersion: 2, v: 'next' })).toEqual({ ok: true, rev: 2 })
+    expect(existsSync(join(dir, 'board%3Ab1.r1.json'))).toBe(false)
+  })
+})

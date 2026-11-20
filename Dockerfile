@@ -37,6 +37,7 @@ COPY --from=build /src/node_modules ./node_modules
 COPY --from=build /src/dist ./dist
 COPY bin ./bin
 COPY web ./web
+COPY public ./public
 
 # `krnl0 <command>` inside the container (docker exec -it krnl0 krnl0 status).
 # npm/yarn are not needed at runtime: removed to shrink what an attacker could use.
