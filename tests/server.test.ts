@@ -70,8 +70,8 @@ describe('setup and login (F2–F5)', () => {
       expect((await server.request('GET', bad)).status, bad).not.toBe(200)
     }
     const page = await server.request('GET', '/setup')
-    expect(page.body.toString()).toContain('/_k0/cube.webp')
-    expect(page.body.toString()).not.toContain('<script')
+    expect(page.text).toContain('/_k0/cube.webp')
+    expect(page.text).not.toContain('<script')
   })
 
   it('pages: setup, then login; nothing of the app before login', async () => {
