@@ -110,7 +110,7 @@ $SUDO install -m 0644 "$DEST/krnl0.service" /etc/systemd/system/krnl0.service
 $SUDO systemctl daemon-reload
 
 # Keep the three newest versions for a quick roll-back.
-ls -1 "$PREFIX/versions" 2>/dev/null | sort -V | head -n -3 | while read -r old; do
+find "$PREFIX/versions" -mindepth 1 -maxdepth 1 -type d ! -name "*.partial" -exec basename {} \; | sort -V | head -n -3 | while read -r old; do
   [ "$PREFIX/versions/$old" = "$DEST" ] || $SUDO rm -rf "$PREFIX/versions/$old"
 done
 
