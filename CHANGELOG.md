@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — 0.1.0
+## 0.1.0 — 2026-11-20
 
 First version.
 
@@ -12,3 +12,7 @@ First version.
 - Daily backups (14 kept), backup before every new version, restore and export.
 - `krnl0` command: setup, status, doctor, config, fingerprint, 2fa, devices, sessions, backup, restore, export, help.
 - Docker image (non-root, read-only), Compose file, one-command Linux installer with a sandboxed systemd service.
+- Serves the KRNL0 web app (phone, iPad and computer layouts) after login; the app's version is pinned per release and its SHA-256 checked.
+- Setup, login and notice pages in the KRNL0 look, with no scripts.
+- `krnl0 setup` in the terminal: the KRNL0 header, questions you answer with the arrow keys, and a finish screen with a QR code for your phone. Plain text when it is not a terminal.
+- Real-time sync: atomic document writes, gzip both ways, server time in the handshake.

@@ -8,7 +8,7 @@ Run KRNL0 on your own server — a home lab, a NAS, a Raspberry Pi, a VPS. Choos
 
 Everything is encrypted, nothing is sent anywhere, and your data stays in one folder you own.
 
-> Status: 0.1.0, first version. The server, sync API, login, encryption, backups, Docker image and installer work. The web pages and the KRNL0 app's sync screen are being designed. Not released yet.
+> 0.1.0, the first version. Works with the KRNL0 app 0.13 or newer. A step-by-step guide with pictures: [theminddev.com/krnl0/server.html](https://theminddev.com/krnl0/server.html).
 
 ## Install
 
