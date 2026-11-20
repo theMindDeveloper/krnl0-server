@@ -261,3 +261,15 @@ describe('compression (Decision S11)', () => {
     expect(typeof health.json().time).toBe('number')
   })
 })
+
+describe('encoded names', () => {
+  it('accepts URL-encoded document names (board%3Ab1)', async () => {
+    server = await startTestServer()
+    await claim(server)
+    const d = await pair(server)
+    const auth = { Authorization: `Bearer ${d.token}` }
+    expect((await server.request('PUT', '/api/v1/docs/board%3Ab1', { json: { baseRev: 0, body: { schemaVersion: 2 } }, headers: auth })).status).toBe(200)
+    expect((await server.request('GET', '/api/v1/docs/board:b1', { headers: auth })).json()).toMatchObject({ name: 'board:b1', rev: 1 })
+    expect((await server.request('GET', '/api/v1/docs/%E0%A4%A', { headers: auth })).status).toBe(400)
+  })
+})

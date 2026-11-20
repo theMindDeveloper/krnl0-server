@@ -157,7 +157,9 @@ export function createApp(ctx: AppContext): {
 
   async function api(req: IncomingMessage, res: ServerResponse, path: string, query: URLSearchParams): Promise<void> {
     const method = req.method ?? 'GET'
-    const seg = path.split('/').filter(Boolean).slice(2) // after "api", "v1"
+    // Segments are URL-decoded: a client may send board:b1 as board%3Ab1.
+    let seg: string[]
+    try { seg = path.split('/').filter(Boolean).slice(2).map((x) => decodeURIComponent(x)) } catch { throw new HttpError(400, 'bad-path', 'The address could not be read.') }
     const [head, a, b] = seg
     if (!originOk(req)) throw new HttpError(403, 'origin', 'Cross-site requests are refused.')
 
