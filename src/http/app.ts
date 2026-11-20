@@ -348,6 +348,7 @@ export function createApp(ctx: AppContext): {
     res.setHeader('Content-Security-Policy', ASSET_CSP)
     res.setHeader('Cache-Control', 'private, max-age=86400')
     res.setHeader('Accept-Ranges', 'bytes')
+    res.setHeader('X-KRNL0-Asset', `${id}.${found.ext}`)
     if (kind === 'other') res.setHeader('Content-Disposition', `attachment; filename="${id}.${found.ext}"`)
     const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''))
     if (range && (range[1] || range[2])) {
