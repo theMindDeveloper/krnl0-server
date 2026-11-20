@@ -90,6 +90,17 @@ export function createApp(ctx: AppContext): {
     return o.toLowerCase() === origin(req)
   }
 
+  /**
+   * A form post from our own page: our Origin, or (privacy settings can make a
+   * browser send `Origin: null`) `Sec-Fetch-Site: same-origin`, which page
+   * scripts cannot set.
+   */
+  const formFromOurPage = (req: IncomingMessage): boolean => {
+    const o = req.headers.origin
+    if (o !== undefined && o !== 'null') return originOk(req)
+    return req.headers['sec-fetch-site'] === 'same-origin'
+  }
+
   const sessionCookie = (token: string, maxAgeSec: number): string =>
     `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAgeSec}`
 
@@ -384,7 +395,7 @@ export function createApp(ctx: AppContext): {
     const method = req.method ?? 'GET'
     if (!cfg.website) return sendHtml(res, 404, noticePage('Website is off', 'The website is turned off on this KRNL0 server. The desktop app can still sync.'))
 
-    if (WRITE_METHODS.has(method) && (req.headers.origin === undefined || !originOk(req))) {
+    if (WRITE_METHODS.has(method) && !formFromOurPage(req)) {
       return sendHtml(res, 403, noticePage('Refused', 'This form was not sent from this server\'s own page.'))
     }
 

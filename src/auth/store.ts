@@ -308,9 +308,13 @@ export class SetupCodeKeeper {
     return this.code
   }
 
-  /** True once for the right, unexpired code; the code is then spent. */
+  /** True once for the right, unexpired code; the code is then spent. An expired code is renewed (and announced). */
   consume(input: string): boolean {
-    if (!this.code || this.now() >= this.expiresAt) return false
+    if (this.code && this.now() >= this.expiresAt) {
+      this.current()
+      return false
+    }
+    if (!this.code) return false
     const ok = safeEqual(normalizeSetupCode(input), normalizeSetupCode(this.code))
     if (ok) {
       this.code = null
