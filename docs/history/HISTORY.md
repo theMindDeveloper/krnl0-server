@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-21 — One-click updates, Docker in one command, releases that follow KRNL0
+
+**Type:** Feature
+**PRs/Commits:** `feat/server-updates`
+**Files changed:** src/update/{files,release,info,linux,docker,runner}.ts, src/update/check.ts, src/http/app.ts, src/server.ts, src/cli/main.ts, packaging/{krnl0,krnl0.service,krnl0-update.*}, install.sh, docker.sh, docker.ps1, compose.yml, .env.example, Dockerfile, .github/workflows/{release,published,tag,follow-krnl0,ci}.yml, scripts/{release-json,follow-krnl0}.mjs, web-version, package.json (sigstore), docs, tests/update.test.ts
+
+**Summary:** `POST /api/v1/server/update` and `PUT …/auto` with the owner's password under the login limits; `GET /api/v1/server` reports how the server updates. The privileged side (Decision S12) is a root systemd helper (path unit on the request, daily timer) or an `updater` container with the Docker socket and its own volume; both install only the newest published release, verified with Sigstore against `release.yml@refs/tags/vX.Y.Z`, Docker by the digest in the signed `release.json`; backup first, 90 s health check, automatic way back (restoring the backup when the data moved on), crash repair. `docker.sh`/`docker.ps1` install with Compose in one command and move a `docker run` server over with its volume, port, address and time zone. Releases (Decision S13): `web-version` file, `:latest` only on Publish, `tag.yml` and `follow-krnl0.yml`. Review fixes before any release: the updater's group access to its volume, unversioned Docker API (Engine 29 refuses 1.41), heartbeat during long pulls, Linux one-click from the CLI, install.sh's cosign for bundle v0.3 (checked in CI), night updates never on without a yes, release PRs authored by the owner. Tested for real on Docker Desktop 29.7 (Windows): a real image build (caught a Dockerfile line break), the updater's status and permissions, a request answered from GitHub, crash repair, the container swap with settings and labels kept, and both installers moving a `docker run` server over (data, port 28443, address and time zone kept; `.env` without BOM). The data volume became external after Compose warned about it.
+
 ## 2026-11-20 — 0.1.0 published; the repository and image are public
 
 **Type:** Release
