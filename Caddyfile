@@ -1,0 +1,11 @@
+# Used by the "domain" profile in compose.yml.
+{$KRNL0_DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy https://krnl0:8443 {
+		transport http {
+			tls_server_name localhost
+			tls_trusted_ca_certs /krnl0-public/ca.crt
+		}
+	}
+}

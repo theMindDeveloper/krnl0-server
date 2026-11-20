@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm test
+      - name: No known vulnerabilities in runtime dependencies (NF10)
+        run: npm audit --omit=dev --audit-level=low
+      - name: Shell scripts
+        run: shellcheck install.sh scripts/bundle.sh packaging/krnl0
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: krnl0-server:ci
+      - name: Smoke test the container
+        run: |
+          docker run -d --name k --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+            -p 8443:8443 -e KRNL0_UPDATE_CHECK=off -e TZ=Europe/Berlin krnl0-server:ci
+          for i in $(seq 1 30); do
+            docker exec k krnl0 status >/dev/null 2>&1 && curl -fsk https://localhost:8443/api/v1/health && break
+            sleep 1
+          done
+          curl -fsk https://localhost:8443/api/v1/health | grep '"protocol":1'
+          test "$(curl -sk -o /dev/null -w '%{http_code}' https://localhost:8443/api/v1/docs)" = "401"
+          docker exec k krnl0 doctor || true
+          docker exec k id -u | grep -v '^0$'
+          docker logs k

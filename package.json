@@ -1,0 +1,41 @@
+{
+  "name": "krnl0-server",
+  "version": "0.1.0",
+  "description": "Self-hosted KRNL0: the website and sync for the KRNL0 app, on your own server",
+  "license": "MIT",
+  "author": {
+    "name": "theMindDeveloper",
+    "email": "theminddevlab@gmail.com"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=24.7.0"
+  },
+  "bin": {
+    "krnl0": "bin/krnl0.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "docs"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "node scripts/dev.mjs",
+    "start": "node bin/krnl0.js start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@peculiar/x509": "^1.14.3",
+    "ws": "^8.23.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/ws": "^8.18.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}

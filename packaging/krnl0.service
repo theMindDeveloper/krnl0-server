@@ -1,0 +1,47 @@
+# KRNL0 server — systemd service (installed by install.sh). Hardened (NF4).
+[Unit]
+Description=KRNL0 server (website and sync)
+Documentation=https://github.com/theMindDeveloper/krnl0-server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=krnl0
+Group=krnl0
+Environment=KRNL0_DATA_DIR=/var/lib/krnl0
+Environment=NODE_ENV=production
+ExecStart=/opt/krnl0/current/node/bin/node /opt/krnl0/current/app/bin/krnl0.js start
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+StateDirectory=krnl0
+StateDirectoryMode=0700
+UMask=0077
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/krnl0
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

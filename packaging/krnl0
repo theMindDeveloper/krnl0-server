@@ -1,0 +1,19 @@
+#!/bin/sh
+# `krnl0` on a Linux install: runs as the krnl0 user so files keep the right owner.
+export KRNL0_DATA_DIR="${KRNL0_DATA_DIR:-/var/lib/krnl0}"
+NODE=/opt/krnl0/current/node/bin/node
+APP=/opt/krnl0/current/app/bin/krnl0.js
+if [ "$(id -un)" = "krnl0" ]; then
+  exec "$NODE" "$APP" "$@"
+fi
+if [ "$(id -u)" = "0" ]; then
+  if command -v runuser >/dev/null 2>&1; then
+    exec runuser -u krnl0 -- env KRNL0_DATA_DIR="$KRNL0_DATA_DIR" "$NODE" "$APP" "$@"
+  fi
+  exec su -s /bin/sh krnl0 -c 'exec "$0" "$@"' -- "$NODE" "$APP" "$@"
+fi
+case "${1:-}" in
+  version|help|"") exec "$NODE" "$APP" "$@" ;;
+esac
+echo "Run it with sudo: sudo krnl0 $*" >&2
+exit 1

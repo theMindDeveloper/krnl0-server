@@ -1,0 +1,92 @@
+name: Release
+
+# A tag vX.Y.Z on main builds everything and makes a DRAFT release.
+# Nothing ships until the owner checks the draft and presses Publish (AGENTS.md rule 11).
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write   # keyless signing (cosign / Sigstore)
+
+env:
+  IMAGE: ghcr.io/theminddeveloper/krnl0-server
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: The tag matches package.json
+        run: |
+          v="$(node -p "require('./package.json').version")"
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME but package.json says $v"; exit 1; }
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm audit --omit=dev --audit-level=low
+
+      - name: KRNL0 web app (when a version is pinned)
+        if: vars.KRNL0_WEB_VERSION != ''
+        run: |
+          curl -fsSL -o web.tar.gz "https://github.com/theMindDeveloper/KRNL0/releases/download/v${{ vars.KRNL0_WEB_VERSION }}/krnl0-web-${{ vars.KRNL0_WEB_VERSION }}.tar.gz"
+          tar -xzf web.tar.gz -C web --strip-components=1
+          test -f web/index.html
+
+      - name: Linux bundles
+        run: |
+          scripts/bundle.sh x64
+          scripts/bundle.sh arm64
+          cp install.sh compose.yml Caddyfile out/ && cp .env.example out/env.example
+          cd out && sha256sum krnl0-server-*.tar.gz install.sh compose.yml Caddyfile env.example > SHA256SUMS
+
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign the checksums
+        run: cosign sign-blob --yes --bundle out/SHA256SUMS.sigstore.json out/SHA256SUMS
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image (amd64 + arm64, with SBOM and provenance)
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          sbom: true
+          provenance: mode=max
+          tags: |
+            ${{ env.IMAGE }}:${{ env.VERSION }}
+            ${{ env.IMAGE }}:latest
+      - name: Sign the image
+        run: cosign sign --yes "${IMAGE}@${{ steps.image.outputs.digest }}"
+
+      - name: Draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: KRNL0 server ${{ env.VERSION }}
+          body_path: docs/releases/v${{ env.VERSION }}.md
+          files: |
+            out/krnl0-server-*.tar.gz
+            out/install.sh
+            out/compose.yml
+            out/Caddyfile
+            out/env.example
+            out/SHA256SUMS
+            out/SHA256SUMS.sigstore.json
