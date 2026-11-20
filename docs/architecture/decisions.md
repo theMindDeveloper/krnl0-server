@@ -66,3 +66,26 @@ Runtime dependencies are `ws`, `zod` and `@peculiar/x509` (and their asn1 helper
 **Why not a CRDT.** KRNL0's state is plain JSON written whole by the app, the CLI and the AI. A CRDT would need a JSON↔CRDT bridge running next to `boardMerge` — two merge systems, and a bridge is where silent loss comes from (concurrent reorders of id lists, tombstone growth from whole-board re-diffs, old clients writing old shapes past migrations). CRDTs pay off for several people typing in the same text; KRNL0 is one owner on a few devices.
 
 **Hardening that comes with it.** (1) A document write is one atomic step: the body is written under its revision's file name, then the meta pointer is replaced, so a crash never pairs a new body with an old revision. (2) JSON bodies are gzip-compressed both ways (built-in zlib). (3) The protocol carries the server time in `hello`/`pong` so clients can measure clock offset.
+
+## Decision S12 — Updating the server from the app (2026-11-20)
+
+**Context.** The owner wants updates to be one click from the KRNL0 app or website, Docker to be one command with an updater, and both to be safe. A container cannot replace itself, and the Linux service runs as a user that cannot change its own program (on purpose).
+
+**Decision.** Two privileged helpers with one shared core (`src/update/`):
+- **Linux:** a root `systemd` path unit watches `/var/lib/krnl0/update/request`; a oneshot service runs the updater from the installed version (root-owned files in `/opt/krnl0`). A daily timer runs the same service for "update at night" and to repair a crash halfway.
+- **Docker:** an `updater` container (same image, command `updater`) with the Docker socket and its own `krnl0-update` volume; it never mounts `/data` and publishes no ports.
+
+**Trust rules (NF11).** The server only asks (an empty request file) and reports. The helper decides what to install by itself: the newest *published* GitHub release of this repository, verified with Sigstore against this repository's `release.yml` at that exact tag, never lower than the running version. From the server's side it reads only whether to act (request present, auto on/off) — so a fully compromised server process can at worst cause the real newest release to be installed. The root helper only unlinks the request and writes status as `krnl0` (`runuser`); it never opens files as root inside the data folder. Repository, URLs and signer identity are constants in the updater; tests use an override only from the helper's own environment (`KRNL0_UPDATER_TEST_*`).
+
+**What gets verified.** `SHA256SUMS` (signed, Sigstore bundle v0.3, `cosign sign-blob --new-bundle-format`) lists every file and `release.json` (version, protocol, minimum KRNL0 app, data format, image digest). Docker pulls the image **by that digest**, so what runs is exactly what was signed. 0.1.0 used cosign's older bundle format; updaters start from 0.2.0.
+
+**Rollback.** Backup before, health with the new version within 90 s, else switch back; if the data format moved on, restore that backup first. The helper keeps its phase in its own state (Linux: `/var/lib/krnl0-updater/state.json`, root-only; Docker: the `-old` container name), so an interrupted update is finished or undone on the next run.
+
+**Not chosen.** Watchtower (third-party, socket access, no signature check, no rollback); giving the server process the socket or root (it faces the network); a single `docker run` with the socket (same problem).
+
+**Runtime dependency (S10).** `sigstore` (sigstore-js, Apache-2.0, maintained by the Sigstore project) to verify the bundle and the transparency log in Node; it fetches the Sigstore trust root through TUF and caches it in the helper's own cache folder.
+
+## Decision S13 — The server release follows each KRNL0 release (2026-11-20)
+
+The web app version is the file `web-version` (was the repository variable `KRNL0_WEB_VERSION`), so a pull request can change it with the workflow's own token. `follow-krnl0.yml` (every 6 hours and on demand) opens a release PR when KRNL0 has a newer published release; it runs typecheck and tests itself, because PRs opened by `GITHUB_TOKEN` start no other workflows. Merging a version bump to `main` runs `tag.yml`, which tags it and dispatches `release.yml` on the tag (a dispatch is the one event `GITHUB_TOKEN` may start), so the Sigstore identity is `release.yml@refs/tags/vX.Y.Z`. The build pushes only `:X.Y.Z`; `:latest` moves when the owner presses Publish (`published.yml`). Everything runs on GitHub's free plan for public repositories; scheduled workflows stop after 60 days without activity in the repository, so the KRNL0 release script also starts the follow workflow directly.
+
