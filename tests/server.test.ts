@@ -59,6 +59,21 @@ describe('setup and login (F2–F5)', () => {
     expect((await server.request('POST', '/api/v1/setup', { json: { code, password: PASSWORD } })).status).toBe(409)
   })
 
+  it('page fonts and pictures are public; nothing else under /_k0/ is', async () => {
+    server = await startTestServer()
+    const font = await server.request('GET', '/_k0/jbm-400.woff2')
+    expect(font.status).toBe(200)
+    expect(font.headers['content-type']).toBe('font/woff2')
+    expect((await server.request('GET', '/_k0/cube.webp')).headers['content-type']).toBe('image/webp')
+    for (const bad of ['/_k0/../package.json', '/_k0/%2e%2e/package.json', '/_k0/x.js', '/_k0/', '/_k0/nope.webp']) {
+      // Never served: 404 inside /_k0/, or (a path that leaves it) the page redirect.
+      expect((await server.request('GET', bad)).status, bad).not.toBe(200)
+    }
+    const page = await server.request('GET', '/setup')
+    expect(page.body.toString()).toContain('/_k0/cube.webp')
+    expect(page.body.toString()).not.toContain('<script')
+  })
+
   it('pages: setup, then login; nothing of the app before login', async () => {
     server = await startTestServer()
     expect((await server.request('GET', '/')).headers.location).toBe('/setup')

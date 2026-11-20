@@ -17,7 +17,8 @@
   "files": [
     "bin",
     "dist",
-    "docs"
+    "docs",
+    "public"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
