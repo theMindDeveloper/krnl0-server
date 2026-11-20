@@ -1,0 +1,35 @@
+name: Tag
+
+# A merged version bump on main becomes a tag and a draft release (Decision S13).
+# A tag pushed with GITHUB_TOKEN starts no workflow, so this dispatches
+# release.yml on the new tag itself.
+
+on:
+  push:
+    branches: [main]
+    paths: ['package.json']
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag the version if it is new
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="$(node -p "require('./package.json').version")"
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
+            echo "v$v is already tagged"; exit 0
+          fi
+          test -f "docs/releases/v$v.md" || { echo "docs/releases/v$v.md is missing: not tagging"; exit 1; }
+          git tag "v$v" "$GITHUB_SHA"
+          git push origin "v$v"
+          gh workflow run release.yml --ref "v$v"
+          echo "Tagged v$v; release.yml builds the draft."

@@ -1,0 +1,11 @@
+# KRNL0 server — starts the updater when the owner asks (F27, Decision S12).
+# The server (user krnl0) only creates this file; the updater decides what to install.
+[Unit]
+Description=KRNL0 server update request
+
+[Path]
+PathExists=/var/lib/krnl0/update/request
+Unit=krnl0-update.service
+
+[Install]
+WantedBy=multi-user.target

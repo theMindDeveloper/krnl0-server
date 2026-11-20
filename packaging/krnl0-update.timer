@@ -1,0 +1,13 @@
+# KRNL0 server — daily run of the updater: updates at night when the owner
+# turned that on, and finishes or undoes an update a crash interrupted.
+[Unit]
+Description=KRNL0 server nightly update check
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=20m
+Persistent=true
+OnBootSec=3min
+
+[Install]
+WantedBy=timers.target

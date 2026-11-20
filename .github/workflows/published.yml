@@ -1,0 +1,35 @@
+name: Published
+
+# The owner pressed Publish: now the image's :latest points at this version,
+# so `docker compose pull` and new installs get it (Decision S13). Until this
+# moment only :X.Y.Z existed, so a draft never reaches anyone.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/theminddeveloper/krnl0-server
+
+jobs:
+  latest:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Move :latest to this version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          v="${TAG#v}"
+          docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$v"
+          docker buildx imagetools inspect "$IMAGE:latest" | head -5

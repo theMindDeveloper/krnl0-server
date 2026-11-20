@@ -1,11 +1,18 @@
-# KRNL0 server — Docker Compose (F18).
+# KRNL0 server — Docker Compose (F18, F28, F29).
 #
+# Easiest: one command writes this file and its .env for you and starts it:
+#   Linux, macOS:  curl -fsSL https://github.com/theMindDeveloper/krnl0-server/releases/latest/download/docker.sh | sh
+#   Windows:       irm https://github.com/theMindDeveloper/krnl0-server/releases/latest/download/docker.ps1 | iex
+#
+# By hand:
 #   1. Put this file in a folder, e.g. ~/krnl0
-#   2. Optional: create a .env next to it (see .env.example) — at least KRNL0_HOSTS and TZ
+#   2. Create a .env next to it (see .env.example) — at least KRNL0_HOSTS and TZ
 #   3. docker compose up -d
 #   4. docker compose logs krnl0      shows the address and the setup code
 #
-# Update:  docker compose pull && docker compose up -d
+# Updates: one click in the KRNL0 app (the updater below does it: signed
+# releases only, backup first, automatic way back). By hand:
+#   docker compose pull && docker compose up -d
 # Own domain with automatic Let's Encrypt certificates: see the "domain" profile below.
 
 name: krnl0
@@ -25,8 +32,16 @@ services:
       KRNL0_TLS: ${KRNL0_TLS:-self-signed}
       KRNL0_TRUST_PROXY: ${KRNL0_TRUST_PROXY:-off}
       KRNL0_UPDATE_CHECK: ${KRNL0_UPDATE_CHECK:-on}
+      # How this server updates (Decision S12): the updater container below.
+      KRNL0_UPDATER: docker
+      KRNL0_UPDATE_DIR: /update
+      KRNL0_IMAGE_TAG: ${KRNL0_VERSION:-latest}
+      KRNL0_AUTO_UPDATE: ${KRNL0_AUTO_UPDATE:-off}
+    labels:
+      krnl0.role: server
     volumes:
       - krnl0-data:/data
+      - krnl0-update:/update
     # Hardening (NF4): nothing but /data is writable, no extra privileges.
     read_only: true
     tmpfs:
@@ -36,6 +51,36 @@ services:
       - no-new-privileges:true
     pids_limit: 256
     mem_limit: 768m
+
+  # The updater (F29, Decision S12): updates the krnl0 container when the owner
+  # asks in the app (or at night, when on). It has the Docker socket, so it is
+  # kept apart: no ports, never the data volume — only krnl0-update (requests
+  # and status). It installs only signed releases, pulled by their digest.
+  updater:
+    image: ghcr.io/theminddeveloper/krnl0-server:${KRNL0_VERSION:-latest}
+    container_name: krnl0-updater
+    command: ["updater", "docker"]
+    restart: unless-stopped
+    user: "0:0"   # the Docker socket belongs to root
+    labels:
+      krnl0.role: updater
+    environment:
+      TZ: ${TZ:-UTC}
+      KRNL0_UPDATE_DIR: /update
+      KRNL0_AUTO_UPDATE: ${KRNL0_AUTO_UPDATE:-off}
+    volumes:
+      - krnl0-update:/update
+      - ${KRNL0_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      disable: true
+    pids_limit: 64
+    mem_limit: 256m
 
   # Own domain: `docker compose --profile domain up -d` with KRNL0_DOMAIN set in .env.
   # Caddy gets and renews a Let's Encrypt certificate (ports 80 and 443 must reach this
@@ -67,5 +112,10 @@ services:
       - no-new-privileges:true
 
 volumes:
+  # One name everywhere: `docker run -v krnl0-data:/data` and this file share it.
+  # The installer sets KRNL0_VOLUME when an older Compose file named it krnl0_krnl0-data.
   krnl0-data:
+    name: ${KRNL0_VOLUME:-krnl0-data}
+  krnl0-update:
+    name: krnl0-update
   caddy-data:

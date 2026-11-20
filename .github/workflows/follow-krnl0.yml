@@ -1,0 +1,79 @@
+name: Follow KRNL0
+
+# When KRNL0 publishes a newer release, open the server release PR that ships
+# its web app (Decision S13). Runs every 6 hours and on demand:
+#   gh workflow run follow-krnl0.yml -R theMindDeveloper/krnl0-server
+# PRs opened with GITHUB_TOKEN start no other workflow, so this job runs the
+# checks itself. Needs "Allow GitHub Actions to create pull requests" on.
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency: follow-krnl0
+
+jobs:
+  follow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - name: Is there a newer KRNL0?
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest="$(gh api repos/theMindDeveloper/KRNL0/releases/latest --jq .tag_name | sed 's/^v//')"
+          current="$(tr -d ' \r\n' < web-version)"
+          echo "KRNL0 latest $latest, this server ships $current"
+          if [ "$latest" = "$current" ]; then echo "go=no" >> "$GITHUB_OUTPUT"; exit 0; fi
+          newer="$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n1)"
+          if [ "$newer" != "$latest" ]; then echo "go=no" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ -n "$(gh pr list --state open --search "head:chore/follow-krnl0-$latest" --json number --jq '.[].number')" ]; then
+            echo "A PR for $latest is already open"; echo "go=no" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # The web app must be in that release, or the build would fail later.
+          curl -fsIL "https://github.com/theMindDeveloper/KRNL0/releases/download/v$latest/krnl0-web-$latest.tar.gz.sha256" >/dev/null
+          echo "go=yes" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+      - name: Prepare the release
+        if: steps.check.outputs.go == 'yes'
+        id: prep
+        run: echo "next=$(node scripts/follow-krnl0.mjs '${{ steps.check.outputs.latest }}')" >> "$GITHUB_OUTPUT"
+      - name: Checks
+        if: steps.check.outputs.go == 'yes'
+        run: |
+          npm ci --ignore-scripts
+          npm run typecheck
+          npm test
+      - name: Open the PR
+        if: steps.check.outputs.go == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.check.outputs.latest }}
+          NEXT: ${{ steps.prep.outputs.next }}
+        run: |
+          # The owner is the author of every commit (AGENTS.md rule 1): take the name and address of main's last commit.
+          git config user.name "$(git log -1 --format=%an)"
+          git config user.email "$(git log -1 --format=%ae)"
+          branch="chore/follow-krnl0-$LATEST"
+          git switch -c "$branch"
+          git add web-version package.json package-lock.json CHANGELOG.md "docs/releases/v$NEXT.md" docs/history/HISTORY.md
+          git commit -m "chore(release): v$NEXT — the website is KRNL0 $LATEST"
+          git push -u origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "chore(release): v$NEXT — the website is KRNL0 $LATEST" \
+            --body "KRNL0 $LATEST was published. This release pins its web app.
+
+          Typecheck and tests ran in this workflow and passed.
+          Merging tags v$NEXT and builds the draft (tag.yml → release.yml). Check the draft, then Publish."

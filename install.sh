@@ -8,11 +8,14 @@
 #   2. checks the bundle's SHA-256 against SHA256SUMS (and its signature, if cosign is installed)
 #   3. creates the system user "krnl0" and installs to /opt/krnl0, data in /var/lib/krnl0
 #   4. installs a locked-down systemd service and starts it
-#   5. runs "krnl0 setup" when you are at a terminal
+#   5. adds the updater (krnl0-update.path/.service/.timer): one-click updates from
+#      the KRNL0 app, signed releases only, with a backup and an automatic way back
+#   6. runs "krnl0 setup" when you are at a terminal
 #
 # Run it again to update; your data stays. Options (environment):
 #   KRNL0_VERSION=0.1.0   install that version instead of the latest
 #   KRNL0_NO_START=1      install, but do not start the service
+#   KRNL0_AUTO_UPDATE=on  update by itself at night (04:00); off unless you say so
 
 set -eu
 
@@ -107,6 +110,9 @@ $SUDO ln -sfn "$DEST" "$PREFIX/current"
 
 $SUDO install -m 0755 "$DEST/krnl0" /usr/local/bin/krnl0
 $SUDO install -m 0644 "$DEST/krnl0.service" /etc/systemd/system/krnl0.service
+for unit in krnl0-update.service krnl0-update.path krnl0-update.timer; do
+  if [ -f "$DEST/$unit" ]; then $SUDO install -m 0644 "$DEST/$unit" "/etc/systemd/system/$unit"; fi
+done
 $SUDO systemctl daemon-reload
 
 # Keep the three newest versions for a quick roll-back.
@@ -137,6 +143,21 @@ if [ "${KRNL0_NO_START:-0}" != "1" ]; then
   fi
 fi
 
+# ── The updater (one click from the app from now on) ──────────────────────
+if [ -f /etc/systemd/system/krnl0-update.path ]; then
+  $SUDO systemctl enable --now krnl0-update.path krnl0-update.timer >/dev/null 2>&1 || true
+  AUTO="${KRNL0_AUTO_UPDATE:-}"
+  if [ -z "$AUTO" ] && [ "$FIRST" = "1" ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    printf 'Update the server by itself at night, signed releases only? [y/N] ' >/dev/tty
+    read -r answer </dev/tty || answer=""
+    case "$answer" in [Yy]*) AUTO=on ;; *) AUTO=off ;; esac
+  fi
+  if [ -n "$AUTO" ]; then $SUDO /usr/local/bin/krnl0 update auto "$AUTO" >/dev/null 2>&1 || true; fi
+  # One run now, so the app sees the updater (and a crash halfway is repaired).
+  $SUDO systemctl start krnl0-update.service >/dev/null 2>&1 || true
+fi
+
 say ""
+say "Updates: one click in the KRNL0 app (saved › Update server), or: sudo krnl0 update now"
 say "Next: sudo krnl0 doctor     (checks everything)"
 say "      krnl0 help            (all commands)"

@@ -1,22 +1,31 @@
 name: Release
 
 # A tag vX.Y.Z on main builds everything and makes a DRAFT release.
-# Nothing ships until the owner checks the draft and presses Publish (AGENTS.md rule 11).
+# Nothing ships until the owner checks the draft and presses Publish (AGENTS.md rule 11):
+# only then does published.yml move the image's :latest, and only published
+# releases are seen by installers and updaters (Decision S13).
+#
+# Started by a tag pushed by a person, or by tag.yml (which tags a merged
+# version bump and dispatches this workflow on that tag, because a tag pushed
+# with GITHUB_TOKEN starts no workflow). Either way github.ref is the tag, so
+# the Sigstore identity is release.yml@refs/tags/vX.Y.Z — what updaters check.
 
 on:
   push:
     tags: ['v*.*.*']
+  workflow_dispatch:
 
 permissions:
   contents: write
   packages: write
-  id-token: write   # keyless signing (cosign / Sigstore)
+  id-token: write   # keyless signing (Sigstore)
 
 env:
   IMAGE: ghcr.io/theminddeveloper/krnl0-server
 
 jobs:
   release:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,22 +34,24 @@ jobs:
           node-version-file: .node-version
           cache: npm
 
-      - name: The tag matches package.json
+      - name: The tag matches package.json; the notes exist
         run: |
           v="$(node -p "require('./package.json').version")"
           test "v$v" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME but package.json says $v"; exit 1; }
+          test -f "docs/releases/v$v.md" || { echo "docs/releases/v$v.md is missing"; exit 1; }
           echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "WEB=$(tr -d ' \r\n' < web-version)" >> "$GITHUB_ENV"
 
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm test
       - run: npm audit --omit=dev --audit-level=low
 
-      - name: KRNL0 web app (when a version is pinned)
-        if: vars.KRNL0_WEB_VERSION != ''
+      - name: KRNL0 web app (the version in web-version)
         run: |
-          base="https://github.com/theMindDeveloper/KRNL0/releases/download/v${{ vars.KRNL0_WEB_VERSION }}"
-          name="krnl0-web-${{ vars.KRNL0_WEB_VERSION }}.tar.gz"
+          test -n "$WEB" || { echo "web-version is empty"; exit 1; }
+          base="https://github.com/theMindDeveloper/KRNL0/releases/download/v$WEB"
+          name="krnl0-web-$WEB.tar.gz"
           curl -fsSL -o "$name" "$base/$name"
           curl -fsSL -o "$name.sha256" "$base/$name.sha256"
           # The web app is what browsers run: refuse it unless it is exactly what KRNL0 released.
@@ -49,17 +60,6 @@ jobs:
           rm -f "$name" "$name.sha256"
           test -f web/index.html
 
-      - name: Linux bundles
-        run: |
-          scripts/bundle.sh x64
-          scripts/bundle.sh arm64
-          cp install.sh compose.yml Caddyfile out/ && cp .env.example out/env.example
-          cd out && sha256sum krnl0-server-*.tar.gz install.sh compose.yml Caddyfile env.example > SHA256SUMS
-
-      - uses: sigstore/cosign-installer@v3
-      - name: Sign the checksums
-        run: cosign sign-blob --yes --bundle out/SHA256SUMS.sigstore.json out/SHA256SUMS
-
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -67,7 +67,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Image (amd64 + arm64, with SBOM and provenance)
+      - name: Image (amd64 + arm64, with SBOM and provenance) — only :X.Y.Z until Publish
         id: image
         uses: docker/build-push-action@v6
         with:
@@ -76,23 +76,43 @@ jobs:
           push: true
           sbom: true
           provenance: mode=max
-          tags: |
-            ${{ env.IMAGE }}:${{ env.VERSION }}
-            ${{ env.IMAGE }}:latest
-      - name: Sign the image
-        run: cosign sign --yes "${IMAGE}@${{ steps.image.outputs.digest }}"
+          tags: ${{ env.IMAGE }}:${{ env.VERSION }}
+
+      - name: Linux bundles and release.json
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          scripts/bundle.sh x64
+          scripts/bundle.sh arm64
+          cp install.sh docker.sh docker.ps1 compose.yml Caddyfile out/ && cp .env.example out/env.example
+          node scripts/release-json.mjs "$VERSION" "$WEB" "$IMAGE@$DIGEST" > out/release.json
+          cat out/release.json
+          cd out && sha256sum krnl0-server-*.tar.gz install.sh docker.sh docker.ps1 compose.yml Caddyfile env.example release.json > SHA256SUMS
+
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign the checksums (Sigstore bundle v0.3) and the image
+        run: |
+          cosign sign-blob --yes --new-bundle-format --bundle out/SHA256SUMS.sigstore.json out/SHA256SUMS
+          cosign sign --yes "${IMAGE}@${{ steps.image.outputs.digest }}"
+
+      - name: Updaters can verify it (the same code they run)
+        run: node bin/krnl0.js updater verify out "v$VERSION"
 
       - name: Draft release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
+          tag_name: ${{ github.ref_name }}
           name: KRNL0 server ${{ env.VERSION }}
           body_path: docs/releases/v${{ env.VERSION }}.md
           files: |
             out/krnl0-server-*.tar.gz
             out/install.sh
+            out/docker.sh
+            out/docker.ps1
             out/compose.yml
             out/Caddyfile
             out/env.example
+            out/release.json
             out/SHA256SUMS
             out/SHA256SUMS.sigstore.json

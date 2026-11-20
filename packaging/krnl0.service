@@ -11,6 +11,7 @@ User=krnl0
 Group=krnl0
 Environment=KRNL0_DATA_DIR=/var/lib/krnl0
 Environment=NODE_ENV=production
+Environment=KRNL0_UPDATER=systemd
 ExecStart=/opt/krnl0/current/node/bin/node /opt/krnl0/current/app/bin/krnl0.js start
 Restart=on-failure
 RestartSec=5

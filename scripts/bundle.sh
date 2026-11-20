@@ -29,7 +29,7 @@ cp -R package.json package-lock.json dist bin docs "$WORK/$NAME/app/"
 mkdir -p "$WORK/$NAME/app/web" && cp -R web/. "$WORK/$NAME/app/web/"
 cp -R public "$WORK/$NAME/app/public"
 ( cd "$WORK/$NAME/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund && rm -f package-lock.json && find dist -name '*.map' -delete )
-cp packaging/krnl0 packaging/krnl0.service README.md LICENSE "$WORK/$NAME/"
+cp packaging/krnl0 packaging/krnl0.service packaging/krnl0-update.service packaging/krnl0-update.path packaging/krnl0-update.timer README.md LICENSE "$WORK/$NAME/"
 chmod 0755 "$WORK/$NAME/krnl0"
 
 tar -czf "$ROOT/out/$NAME.tar.gz" -C "$WORK" "$NAME"

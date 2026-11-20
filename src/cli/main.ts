@@ -11,6 +11,9 @@ import { passwordProblem } from '../auth/password.js'
 import { otpauthUri } from '../auth/totp.js'
 import { listBackups, makeBackup, pruneBackups, restoreBackup } from '../store/backup.js'
 import { fingerprintOf } from '../tls/selfsigned.js'
+import { updateDir, requestUpdate, writeAuto } from '../update/files.js'
+import { serverUpdate } from '../update/info.js'
+import { updaterMain } from '../update/runner.js'
 import { UpdateChecker } from '../update/check.js'
 import { addressesOf, inDocker, runningPid, startServer } from '../server.js'
 import { PROTOCOL, VERSION } from '../version.js'
@@ -393,6 +396,37 @@ async function cmdSessions(paths: DataPaths, p: Parsed): Promise<number> {
   throw new Error('Usage: krnl0 sessions [list] | revoke <id|--all>')
 }
 
+/** krnl0 update [now | auto on|off] (F31): the same as the app's update, on the server. */
+async function cmdUpdate(paths: DataPaths, p: Parsed): Promise<number> {
+  const cfg = loadConfig(paths.config)
+  const dir = updateDir(paths.root)
+  const sub = p.args[1] ?? 'status'
+  if (sub === 'auto') {
+    const on = p.args[2]
+    if (on !== 'on' && on !== 'off') throw new Error('Usage: krnl0 update auto on|off')
+    writeAuto(dir, on === 'on')
+    say(on === 'on' ? 'The server updates by itself at night (04:00), signed releases only.' : 'Night updates are off.')
+    return 0
+  }
+  const checker = new UpdateChecker(paths, cfg.updateCheck)
+  if (cfg.updateCheck) await checker.checkNow().catch(() => { /* show what is known */ })
+  const u = serverUpdate(checker.info(), dir, { env: process.env, inDocker: inDocker(), program: process.argv[1] ?? '', now: Date.now() })
+  if (sub === 'now') {
+    if (u.channel !== 'one-click') { say(u.reason ?? 'This server can not update itself.'); if (u.command) say(`Run: ${u.command}`); return 1 }
+    if (!u.available) { say(`Your server runs ${u.current}, the newest version.`); return 0 }
+    requestUpdate(dir)
+    say(`Updating to ${u.latest ?? 'the newest version'}: backup, download, signature check, restart. Watch it: krnl0 update`)
+    return 0
+  }
+  if (sub !== 'status') throw new Error('Usage: krnl0 update [now | auto on|off]')
+  say(`Version   ${u.current}${u.available ? `  (${u.latest ?? ''} is out)` : '  (newest)'}`)
+  say(`Updates   ${u.channel === 'one-click' ? 'one click in the KRNL0 app, or: krnl0 update now' : u.channel === 'command' ? `run on the server: ${u.command ?? ''}` : 'from source (git)'}`)
+  say(`At night  ${u.auto ? 'on (04:00)' : 'off'}`)
+  if (u.job && u.job.state !== 'idle') say(`Last      ${u.job.state}${u.job.to ? ` ${u.job.from ?? ''} → ${u.job.to}` : ''}${u.job.message ? ` — ${u.job.message}` : ''}`)
+  if (u.reason && u.channel !== 'one-click') say(u.reason)
+  return 0
+}
+
 export async function main(argv: string[]): Promise<number> {
   const p = parseArgs(argv)
   const cmd = p.args[0] ?? (p.flags.has('help') ? 'help' : 'help')
@@ -473,6 +507,8 @@ export async function main(argv: string[]): Promise<number> {
         return 0
       }
       case 'version': say(`krnl0-server ${VERSION} (protocol ${PROTOCOL})`); return 0
+      case 'update': return await cmdUpdate(paths, p)
+      case 'updater': return await updaterMain(p.args.slice(1))
       case 'help': {
         const text = helpTopic(p.args[1])
         if (text === null) throw new Error(`No help for "${p.args[1] ?? ''}". Topics: ${TOPIC_NAMES.join(', ')}`)

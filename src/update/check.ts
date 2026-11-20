@@ -15,6 +15,9 @@ const stateSchema = z.object({
   checkedAt: z.string().nullable(),
   latest: z.string().nullable(),
   url: z.string().nullable(),
+  /** From the newest release's release.json (shown to the owner; the updater verifies its own copy). */
+  minApp: z.string().nullable().default(null),
+  protocol: z.number().int().nullable().default(null),
 })
 export type UpdateState = z.infer<typeof stateSchema>
 
@@ -38,7 +41,7 @@ export class UpdateChecker {
 
   info(): UpdateInfo {
     let s: UpdateState
-    try { s = readJson(this.file, stateSchema, { checkedAt: null, latest: null, url: null }) } catch { s = { checkedAt: null, latest: null, url: null } }
+    try { s = readJson(this.file, stateSchema, { checkedAt: null, latest: null, url: null, minApp: null, protocol: null }) } catch { s = { checkedAt: null, latest: null, url: null, minApp: null, protocol: null } }
     return { ...s, current: VERSION, available: s.latest !== null && compareVersions(s.latest, VERSION) > 0, enabled: this.enabled }
   }
 
@@ -51,7 +54,17 @@ export class UpdateChecker {
     if (!res.ok) throw new Error(`GitHub answered ${res.status}`)
     const rel = releaseSchema.parse(await res.json())
     const latest = rel.tag_name.replace(/^v/, '')
-    writeJsonAtomic(this.file, { checkedAt: new Date().toISOString(), latest, url: rel.html_url } satisfies UpdateState)
+    let minApp: string | null = null
+    let protocol: number | null = null
+    try {
+      const r = await this.fetchFn(`https://github.com/${RELEASES_REPO}/releases/download/${rel.tag_name}/release.json`, { headers: { 'User-Agent': 'krnl0-server' }, signal: AbortSignal.timeout(10_000) })
+      if (r.ok) {
+        const j = z.object({ minApp: z.string().nullable(), protocol: z.number().int() }).partial().parse(await r.json())
+        minApp = j.minApp ?? null
+        protocol = j.protocol ?? null
+      }
+    } catch { /* older releases have no release.json */ }
+    writeJsonAtomic(this.file, { checkedAt: new Date().toISOString(), latest, url: rel.html_url, minApp, protocol } satisfies UpdateState)
     return this.info()
   }
 
