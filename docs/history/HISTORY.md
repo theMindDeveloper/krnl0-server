@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-20 — 0.1.0 published; the repository and image are public
+
+**Type:** Release
+**PRs/Commits:** #10 (merged to `main`), tag `v0.1.0`
+**Files changed:** README.md, CHANGELOG.md, docs/releases/v0.1.0.md, docs/history/HISTORY.md
+
+**Summary:** Repository variable `KRNL0_WEB_VERSION=0.13.0` set after KRNL0 0.13.0 was published; tag `v0.1.0` built the Linux bundles (x64, arm64, each with the KRNL0 web app checked against its SHA-256), the signed `SHA256SUMS`, and the amd64/arm64 image with SBOM and provenance. The owner approved the draft and it was published. The repository was made public, and the owner made the GHCR package public in its settings (GitHub has no API for that). Checked logged out: the install script, both bundles, the Compose files and an anonymous pull of `:0.1.0` and `:latest`. The website's step-by-step guide went live at theminddev.com/krnl0/server.html.
+
 ## 2026-11-20 — The terminal look: setup, doctor and the start screen
 
 **Type:** Feature
