@@ -23,6 +23,8 @@ import { lastBackupAt } from '../store/backup.js'
 import type { TlsInfo } from '../tls/index.js'
 import type { SyncHub } from '../sync/hub.js'
 import type { UpdateChecker } from '../update/check.js'
+import { requestUpdate, writeAuto } from '../update/files.js'
+import { serverUpdate, type InstallFacts } from '../update/info.js'
 import { PROTOCOL, VERSION } from '../version.js'
 import { log } from '../log.js'
 import { ASSET_CSP, securityHeaders } from './headers.js'
@@ -45,6 +47,10 @@ export interface AppContext {
   hub: SyncHub
   updates: UpdateChecker
   authLimiter: WindowLimiter
+  /** The folder the server shares with its updater (Decision S12). */
+  updateDir: string
+  /** How this server was installed (env, Docker, program path): decides how it updates. */
+  install: () => InstallFacts
 }
 
 type Principal = { kind: 'session'; session: Session } | { kind: 'device'; device: Device }
@@ -57,6 +63,8 @@ const codeField = z.string().max(64).optional()
 const setupBody = z.object({ code: z.string().min(1).max(64), password: passwordField }).strict()
 const loginBody = z.object({ password: passwordField, code: codeField }).strict()
 const pairBody = z.object({ password: passwordField, code: codeField, name: z.string().min(1).max(80), platform: z.string().max(40).default('') }).strict()
+const updateBody = z.object({ password: passwordField, code: codeField }).strict()
+const autoBody = z.object({ on: z.boolean(), password: passwordField, code: codeField }).strict()
 const putDocBody = z.object({ baseRev: z.number().int().min(0), body: z.unknown() }).strict()
 const appendBody = z.object({ entries: z.array(z.object({ month: z.string().regex(MONTH), entry: z.unknown() }).strict()).max(5000) }).strict()
 
@@ -226,11 +234,45 @@ export function createApp(ctx: AppContext): {
     const p = requirePrincipal(req)
     const by = byOf(req)
 
+    const updateNow = () => serverUpdate(ctx.updates.info(), ctx.updateDir, ctx.install())
+
+    // One-click update and night updates (F24, F30): the owner's password every time.
+    if (head === 'server' && a === 'update') {
+      if (!b && method === 'POST') {
+        rateLimit(req)
+        const body = await readJsonBody(req, updateBody)
+        const r = await auth.login(body.password, body.code)
+        if (r.kind !== 'ok') throw loginFailure(r)
+        const u = updateNow()
+        if (u.channel !== 'one-click') throw new HttpError(409, 'no-updater', u.reason ?? 'This server can not update itself.', { update: u })
+        if (u.job?.state === 'running') throw new HttpError(409, 'busy', 'An update is already running.', { update: u })
+        requestUpdate(ctx.updateDir)
+        log.info('Update requested by the owner', { by: p.kind })
+        return sendJson(res, 202, { update: updateNow() })
+      }
+      if (b === 'auto' && method === 'PUT') {
+        rateLimit(req)
+        const body = await readJsonBody(req, autoBody)
+        const r = await auth.login(body.password, body.code)
+        if (r.kind !== 'ok') throw loginFailure(r)
+        writeAuto(ctx.updateDir, body.on)
+        log.info('Night updates switched', { on: body.on })
+        return sendJson(res, 200, { update: updateNow() })
+      }
+      if (b === 'check' && method === 'POST') {
+        const last = ctx.updates.info().checkedAt
+        // At most once a minute: GitHub limits how often a server may ask.
+        if (!last || Date.now() - Date.parse(last) > 60_000) await ctx.updates.checkNow().catch(() => { /* answer with what is known */ })
+        return sendJson(res, 200, { update: updateNow() })
+      }
+      throw new HttpError(404, 'not-found', 'No such route.')
+    }
+
     if (head === 'server' && seg.length === 1 && method === 'GET') {
       const t = ctx.tls()
       return sendJson(res, 200, {
         ...health(),
-        update: ctx.updates.info(),
+        update: updateNow(),
         tls: { mode: t.mode, fingerprint: t.fingerprint, notAfter: t.notAfter?.toISOString() ?? null, names: t.names },
         lastBackupAt: lastBackupAt(ctx.paths)?.toISOString() ?? null,
       })

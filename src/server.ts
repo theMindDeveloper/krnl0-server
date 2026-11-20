@@ -21,6 +21,7 @@ import { TlsManager } from './tls/index.js'
 import { localNames } from './tls/selfsigned.js'
 import { SyncHub } from './sync/hub.js'
 import { UpdateChecker, type FetchFn } from './update/check.js'
+import { updateDir } from './update/files.js'
 import { createApp, type AppContext } from './http/app.js'
 import { VERSION } from './version.js'
 import { log } from './log.js'
@@ -144,6 +145,8 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     hub,
     updates,
     authLimiter: new WindowLimiter(10, 15 * 60_000),
+    updateDir: updateDir(paths.root, opts.env ?? process.env),
+    install: () => ({ env: opts.env ?? process.env, inDocker: inDocker(), program: process.argv[1] ?? '', now: Date.now() }),
   }
   const app = createApp(ctx)
 

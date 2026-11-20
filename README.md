@@ -8,24 +8,27 @@ Run KRNL0 on your own server — a home lab, a NAS, a Raspberry Pi, a VPS. Choos
 
 Everything is encrypted, nothing is sent anywhere, and your data stays in one folder you own.
 
-> 0.1.0, the first version. Works with the KRNL0 app 0.13 or newer. A step-by-step guide with pictures: [theminddev.com/krnl0/server.html](https://theminddev.com/krnl0/server.html).
+> 0.2.0: updates in one click from the KRNL0 app (0.14 or newer), Docker in one command. Works with the KRNL0 app 0.13 or newer. A step-by-step guide with pictures: [theminddev.com/krnl0/server.html](https://theminddev.com/krnl0/server.html).
 
 ## Install
 
-### Docker (recommended)
+### Docker, one command (recommended)
+
+Linux and macOS:
 
 ```sh
-docker run -d --name krnl0 --restart unless-stopped \
-  -p 8443:8443 -v krnl0-data:/data \
-  -e KRNL0_HOSTS=192.168.1.20 -e TZ=Europe/Berlin \
-  ghcr.io/theminddeveloper/krnl0-server:latest
-
-docker logs krnl0
+curl -fsSL https://github.com/theMindDeveloper/krnl0-server/releases/latest/download/docker.sh | sh
 ```
 
-The log shows the address and a one-time **setup code**. Open the address, click past the browser's warning once, enter the code and choose a password.
+Windows (Docker Desktop), in PowerShell:
 
-Docker Compose: get [`compose.yml`](compose.yml) and [`.env.example`](.env.example) (save as `.env`), then `docker compose up -d`.
+```powershell
+irm https://github.com/theMindDeveloper/krnl0-server/releases/latest/download/docker.ps1 | iex
+```
+
+It checks Docker, writes `~/krnl0/compose.yml` and `.env` (your address and time zone), starts KRNL0 and its updater, and prints the address and a one-time **setup code**. Open the address, click past the browser's warning once, enter the code and choose a password. A server you started with `docker run` moves over with its data. Run it again any time; it keeps your data and settings.
+
+By hand: [`compose.yml`](compose.yml) and [`.env.example`](.env.example) (save as `.env`), then `docker volume create krnl0-data` and `docker compose up -d`.
 
 ### Linux without Docker
 
@@ -33,7 +36,7 @@ Docker Compose: get [`compose.yml`](compose.yml) and [`.env.example`](.env.examp
 curl -fsSL https://github.com/theMindDeveloper/krnl0-server/releases/latest/download/install.sh | sh
 ```
 
-It checks the download, installs a locked-down systemd service running as its own user, and walks you through setup. Run it again to update. Read [install.sh](install.sh) first if you like; it is short.
+It checks the download, installs a locked-down systemd service running as its own user and the updater, and walks you through setup. Read [install.sh](install.sh) first if you like; it is short.
 
 ## Everyday commands
 
@@ -66,7 +69,7 @@ Details: [threat model](docs/architecture/threat-model.md) · report a problem: 
 
 ## Updates
 
-The server tells you when a new version is out (`krnl0 status`); it never updates itself. Docker: `docker compose pull && docker compose up -d`. Linux: run the install command again. Every new version backs up your data before it starts. See [updates](docs/guides/updates.md).
+**One click in the KRNL0 app:** click **saved** in the top bar, then **Update server**, and type your password. Or let it update itself at night (`krnl0 update auto on`). Either way the updater installs only signed releases of this repository, backs up first, checks the new version and goes back by itself if anything fails. On the server: `krnl0 update` (status) and `krnl0 update now`. Details: [updates](docs/guides/updates.md).
 
 ## Docs
 

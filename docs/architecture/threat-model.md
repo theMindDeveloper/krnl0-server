@@ -16,8 +16,11 @@
 | Hostile content in a board (an SVG with script, an HTML file) | Run script in the KRNL0 origin (XSS) | Assets served with `nosniff`, a sandboxing CSP, and `Content-Disposition: attachment` for anything not image/audio/video/PDF (F12); strict page CSP (NF5) |
 | A stolen laptop with a paired app | Use its device token | Revocation takes effect immediately (F6); tokens are hashed on the server |
 | Someone who copies the `/data` folder (backup drive, NAS share) | Read plans; try to use stored secrets | Passwords/tokens/sessions are hashes (NF1); private keys 0600; plans themselves are readable — use disk encryption (app-level encryption is planned) |
-| A compromised dependency | Run code in the server | Three direct runtime dependencies (S10), lockfile, no install scripts, `npm audit` gate and Dependabot (NF10), non-root read-only container (NF4), no Docker socket (S7) |
+| A compromised dependency | Run code in the server | Three direct runtime dependencies (S10), lockfile, no install scripts, `npm audit` gate and Dependabot (NF10), non-root read-only container (NF4), no Docker socket in the server container (S7) |
 | A tampered download | Install a changed server | SHA-256 checks in `install.sh`; Sigstore signatures on the checksums and the image (NF10) |
+| A compromised server process (a bug in it) | Ask for an update, read the updater's status | It can't choose what is installed: the updater takes only the newest signed release of this repository at its exact tag, never lower, pulled by digest (F25, NF11, S12); the root helper never opens files in the data folder as root; the Docker updater never mounts `/data` |
+| Someone with the owner's browser session or a device token, not the password | Start an update or switch night updates | Both need the password (and 2FA code) every time, under the login limits (F24) |
+| Someone who takes over the owner's GitHub account | Publish a signed release that updaters accept | Out of the updater's reach by design (it trusts this repository's release workflow). Defences: 2FA on GitHub, protected tags, the owner's Publish click as the gate (drafts are never installed, `:latest` moves only on Publish), night updates off unless turned on, backup and automatic way back |
 | An old client | Overwrite a newer board with an older schema | `schemaVersion` downgrade guard (F9); protocol handshake (F14) |
 
 ## Out of scope

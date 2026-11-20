@@ -23,7 +23,17 @@ jobs:
       - name: No known vulnerabilities in runtime dependencies (NF10)
         run: npm audit --omit=dev --audit-level=low
       - name: Shell scripts
-        run: shellcheck install.sh scripts/bundle.sh packaging/krnl0
+        run: shellcheck install.sh docker.sh scripts/bundle.sh packaging/krnl0
+      - name: Windows installer is plain ASCII and parses (Windows PowerShell 5.1 reads files as ANSI)
+        shell: pwsh
+        run: |
+          $bytes = [System.IO.File]::ReadAllBytes('docker.ps1')
+          if ($bytes | Where-Object { $_ -gt 127 }) { throw 'docker.ps1 must be plain ASCII' }
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path docker.ps1), [ref]$null, [ref]$errors)
+          if ($errors) { $errors | ForEach-Object { $_.Message }; throw 'docker.ps1 does not parse' }
+      - name: Compose file is valid
+        run: docker compose -f compose.yml config --quiet
 
   docker:
     runs-on: ubuntu-latest

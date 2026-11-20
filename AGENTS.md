@@ -16,7 +16,7 @@ This repo is the **self-hosted server for KRNL0**: one program that can serve th
 8. **Every server function has a `krnl0` CLI command** (the server's equivalent of KRNL0's `sys` rule).
 9. **New UI (web pages, the terminal setup look, the phone view) is drafted on the Claude Design canvas first;** the owner picks one before code is written.
 10. **Each checkout/worktree has its own data folder and port** (`npm run dev` derives both from the folder path). Never point a dev server at a real `/data`.
-11. **Releases**: bump `package.json`, tag `vX.Y.Z` on `main`, CI builds the image and bundles and makes a draft release. Never publish, tag or move a tag without the owner's OK. Never reuse a version. The web app inside a release is the KRNL0 release named by the repository variable `KRNL0_WEB_VERSION` (Settings › Variables): set it to the newest KRNL0 version **after** that KRNL0 release is published, so its `krnl0-web-<version>.tar.gz` and `.sha256` can be downloaded and checked.
+11. **Releases** (Decision S13; the whole train: KRNL0's `docs/releases/RELEASING.md` § 0): a release is a PR that bumps `package.json` (and, for a new website, the file `web-version`); merging it runs `tag.yml`, which tags `vX.Y.Z` and dispatches `release.yml` (draft: bundles, image `:X.Y.Z`, `release.json`, signed `SHA256SUMS`, verified in CI by `krnl0 updater verify`). When KRNL0 publishes, `follow-krnl0.yml` opens that PR by itself (or `gh workflow run follow-krnl0.yml`). Publish only with the owner's OK in the moment; `published.yml` then moves `:latest`, and updaters see it. Never reuse a version or move a tag. Updaters (Decision S12) install only signed, published, newer releases: never weaken `src/update/release.ts`'s identity check.
 
 ---
 
@@ -43,7 +43,7 @@ src/
   store/           documents, time log, assets, backups
   http/            server, routes, security headers, static website
   sync/            WebSocket change notifications
-  update/          release check
+  update/          release check, updater (release.ts verify · linux.ts · docker.ts · runner.ts), info for the app
   cli/             the krnl0 command
 tests/             vitest
 ```

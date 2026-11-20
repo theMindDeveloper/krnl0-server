@@ -8,11 +8,14 @@
 #   2. checks the bundle's SHA-256 against SHA256SUMS (and its signature, if cosign is installed)
 #   3. creates the system user "krnl0" and installs to /opt/krnl0, data in /var/lib/krnl0
 #   4. installs a locked-down systemd service and starts it
-#   5. runs "krnl0 setup" when you are at a terminal
+#   5. adds the updater (krnl0-update.path/.service/.timer): one-click updates from
+#      the KRNL0 app, signed releases only, with a backup and an automatic way back
+#   6. runs "krnl0 setup" when you are at a terminal
 #
 # Run it again to update; your data stays. Options (environment):
 #   KRNL0_VERSION=0.1.0   install that version instead of the latest
 #   KRNL0_NO_START=1      install, but do not start the service
+#   KRNL0_AUTO_UPDATE=on  update by itself at night (04:00); off unless you say so
 
 set -eu
 
@@ -22,6 +25,9 @@ DATA="/var/lib/krnl0"
 VERSION="${KRNL0_VERSION:-latest}"
 
 say() { printf '%s\n' "$*"; }
+# A terminal we can really open (cloud-init, Ansible or "docker exec" without -t have a
+# /dev/tty that exists but can't be opened).
+has_tty() { ( : </dev/tty >/dev/tty ) 2>/dev/null; }
 fail() { printf 'krnl0 install: %s\n' "$*" >&2; exit 1; }
 
 # ── Checks ────────────────────────────────────────────────────────────────
@@ -70,9 +76,19 @@ fetch "$BASE/$FILE" "$TMP/$FILE" || fail "could not download $FILE"
 say "Checking the download..."
 ( cd "$TMP" && grep " \*\{0,1\}$FILE\$" SHA256SUMS | sha256sum -c - >/dev/null ) || fail "checksum mismatch: the download is damaged or was changed. Nothing was installed."
 
+# Sigstore bundle v0.3 (releases from 0.2.0 on) needs cosign 2.4 or newer; an older one
+# can't read it, so it is skipped with a note rather than read as a bad signature.
+COSIGN_OK=0
 if command -v cosign >/dev/null 2>&1; then
+  cv="$(cosign version 2>/dev/null | sed -n 's/^GitVersion:[[:space:]]*v\{0,1\}\([0-9]*\)\.\([0-9]*\).*/\1 \2/p' | head -n1)"
+  # shellcheck disable=SC2086 # split "major minor" on purpose
+  set -- $cv
+  if [ "${1:-0}" -gt 2 ] || { [ "${1:-0}" -eq 2 ] && [ "${2:-0}" -ge 4 ]; }; then COSIGN_OK=1
+  else say "cosign is older than 2.4: skipping the signature check (the checksum was checked)."; fi
+fi
+if [ "$COSIGN_OK" = "1" ]; then
   if fetch "$BASE/SHA256SUMS.sigstore.json" "$TMP/SHA256SUMS.sigstore.json" 2>/dev/null; then
-    cosign verify-blob --bundle "$TMP/SHA256SUMS.sigstore.json" \
+    cosign verify-blob --new-bundle-format --bundle "$TMP/SHA256SUMS.sigstore.json" \
       --certificate-identity-regexp "^https://github.com/$REPO/\.github/workflows/release\.yml@refs/tags/v" \
       --certificate-oidc-issuer https://token.actions.githubusercontent.com \
       "$TMP/SHA256SUMS" >/dev/null 2>&1 || fail "the release signature does not match. Nothing was installed."
@@ -107,6 +123,9 @@ $SUDO ln -sfn "$DEST" "$PREFIX/current"
 
 $SUDO install -m 0755 "$DEST/krnl0" /usr/local/bin/krnl0
 $SUDO install -m 0644 "$DEST/krnl0.service" /etc/systemd/system/krnl0.service
+for unit in krnl0-update.service krnl0-update.path krnl0-update.timer; do
+  if [ -f "$DEST/$unit" ]; then $SUDO install -m 0644 "$DEST/$unit" "/etc/systemd/system/$unit"; fi
+done
 $SUDO systemctl daemon-reload
 
 # Keep the three newest versions for a quick roll-back.
@@ -120,7 +139,7 @@ say "Installed KRNL0 server $NEW_VERSION."
 FIRST=0
 [ -f "$DATA/config.json" ] || FIRST=1
 
-if [ "$FIRST" = "1" ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+if [ "$FIRST" = "1" ] && has_tty; then
   say ""
   $SUDO /usr/local/bin/krnl0 setup </dev/tty >/dev/tty 2>&1 || say "Setup stopped. Run it any time: sudo krnl0 setup"
 fi
@@ -137,6 +156,21 @@ if [ "${KRNL0_NO_START:-0}" != "1" ]; then
   fi
 fi
 
+# ── The updater (one click from the app from now on) ──────────────────────
+if [ -f /etc/systemd/system/krnl0-update.path ]; then
+  $SUDO systemctl enable --now krnl0-update.path krnl0-update.timer >/dev/null 2>&1 || true
+  AUTO="${KRNL0_AUTO_UPDATE:-}"
+  if [ -z "$AUTO" ] && [ "$FIRST" = "1" ] && has_tty; then
+    printf 'Update the server by itself at night, signed releases only? [y/N] ' >/dev/tty
+    read -r answer </dev/tty || answer=""
+    case "$answer" in [Yy]*) AUTO=on ;; *) AUTO=off ;; esac
+  fi
+  if [ -n "$AUTO" ]; then $SUDO /usr/local/bin/krnl0 update auto "$AUTO" >/dev/null 2>&1 || true; fi
+  # One run now, so the app sees the updater (and a crash halfway is repaired).
+  $SUDO systemctl start krnl0-update.service >/dev/null 2>&1 || true
+fi
+
 say ""
+say "Updates: one click in the KRNL0 app (saved › Update server), or: sudo krnl0 update now"
 say "Next: sudo krnl0 doctor     (checks everything)"
 say "      krnl0 help            (all commands)"

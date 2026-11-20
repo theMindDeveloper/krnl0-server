@@ -1,0 +1,27 @@
+# KRNL0 server — the updater (F26, F27, Decision S12). Runs as root because it
+# replaces /opt/krnl0 and restarts krnl0.service; it runs the version installed
+# now (root-owned), installs only signed releases of this repository, and
+# touches the server's data folder only as the krnl0 user.
+[Unit]
+Description=KRNL0 server updater
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=NODE_ENV=production
+ExecStart=/opt/krnl0/current/node/bin/node /opt/krnl0/current/app/bin/krnl0.js updater linux
+TimeoutStartSec=30min
+StateDirectory=krnl0-updater
+StateDirectoryMode=0700
+CacheDirectory=krnl0-updater
+CacheDirectoryMode=0700
+UMask=0022
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+LockPersonality=yes

@@ -28,13 +28,22 @@ The server has **no terminal, no AI and no board CLI** for the website (owner de
 | F13 | **Website hosting.** With Website on, the server serves the KRNL0 web build from `webDir` (single-page app) to the logged-in owner only. Until a web build is installed, it serves its own notice page ("The server is running"). |
 | F14 | **Version handshake.** `/api/v1/health` and the WebSocket hello carry the server version and protocol number. A client with another protocol major is refused with a message that says which side to update. |
 | F15 | **Backups.** A backup is made every 24 hours and before the server runs a new version for the first time; the last 14 are kept. `krnl0 backup`, `krnl0 backups`, `krnl0 restore <name>` (server stopped). Assets are hard-linked, so backups cost little space. |
-| F16 | **Update check.** Once a day the server asks GitHub Releases for the newest version (switchable off: `KRNL0_UPDATE_CHECK=off`). `krnl0 status` and the API report it; nothing updates by itself unless the owner chose it (Watchtower or a timer). |
+| F16 | **Update check.** Once a day the server asks GitHub Releases for the newest version (switchable off: `KRNL0_UPDATE_CHECK=off`). `krnl0 status` and the API report it; nothing updates by itself unless the owner turned on F30. |
 | F17 | **Admin CLI** `krnl0`: `start`, `setup`, `status`, `doctor`, `config get/set`, `fingerprint`, `reset-password`, `2fa enable/disable/status`, `devices list/revoke`, `sessions list/revoke`, `backup`, `backups`, `restore`, `export`, `help <topic>`, `version`. |
 | F18 | **Install, two ways.** (a) One Docker image (amd64 + arm64), one `docker run`, or the `compose.yml`. (b) One command (`install.sh`) that installs a self-contained Linux bundle as a locked-down systemd service, after checking its checksum. |
 | F19 | **Time zone.** The server's time zone is set in setup (`TZ`) and reported to clients, so day boundaries never fall back to UTC by accident. |
 | F21 | **The server's own pages** — setup, login, notices — in the KRNL0 look (designs *Setup* and *PhoneLogin*): phone first, a side panel with the cube, the address, the encryption and the fingerprint from 960 px. No scripts at all (CSP `script-src 'self'`); recovery-code and forgot-password help open in place (`<details>`). Their fonts, icon and picture come from the server itself under `/_k0/` (public, allow-listed names only; nothing else is served there). |
 | F22 | **The web app in a release** is the KRNL0 release's `krnl0-web-<version>.tar.gz` named by `KRNL0_WEB_VERSION`, used only when its SHA-256 matches the `.sha256` KRNL0 published. |
 | F23 | **The terminal look.** On a real terminal `krnl0 setup` asks one boxed question at a time (arrow keys, space, enter; numbers work too), shows the answered steps and the ones to come, and ends with DONE, a QR code of the address, the facts and the doctor's checks. Off a terminal (logs, pipes), with `--yes` or with flags, it is plain text; `NO_COLOR` turns colours off. |
+| F24 | **One-click update.** The owner can update the server from the KRNL0 app or the website: `POST /api/v1/server/update` with the owner's password (and 2FA code when on). It always means "the newest published release"; the request carries no version, address or file. Login rate limits and lock-out apply. A device token or a session alone is not enough. |
+| F25 | **Only signed releases.** Before anything changes, the updater downloads `SHA256SUMS`, its Sigstore bundle and `release.json` from the newest GitHub release and verifies the bundle against exactly `https://github.com/theMindDeveloper/krnl0-server/.github/workflows/release.yml@refs/tags/v<version>` (issuer `https://token.actions.githubusercontent.com`). Repository, URLs and identity are fixed in the updater's own code; nothing the server process can write changes them. Never a lower or equal version. |
+| F26 | **Safe switch.** The updater makes a backup, switches to the new version, and waits up to 90 s for it to answer `/api/v1/health` with the new version. If it does not, it switches back by itself; when the new version already changed the data format, it restores the backup made just before the update. A crash halfway is repaired the next time the updater runs. |
+| F27 | **Linux install.** `install.sh` adds a root helper (`krnl0-update.path` → `krnl0-update.service`, plus `krnl0-update.timer`). The server (user `krnl0`) only creates `/var/lib/krnl0/update/request`; the helper deletes it, runs the updater of the version installed now (root-owned files), and writes its status as the `krnl0` user. Re-running `install.sh` adds the helper to an existing install. |
+| F28 | **Docker, one command.** `curl -fsSL …/docker.sh | sh` (Linux, macOS) or `irm …/docker.ps1 | iex` (Windows): checks Docker, writes `~/krnl0/compose.yml` and `.env` (address and time zone found on the machine), starts the server and the updater, and prints the address and setup code. It takes over a server started with plain `docker run` (same `krnl0-data` volume) and keeps an existing Compose volume. |
+| F29 | **Docker updater.** A second container (`updater`, same image) with the Docker socket, its own `krnl0-update` volume (request and status only, never `/data`) and no published ports. It pulls the release's image by the digest in the signed `release.json`, tags it as the Compose file names it, recreates the `krnl0` container with the same settings and labels, and updates itself last. A pinned `KRNL0_VERSION` is respected (no one-click; the app shows the command). |
+| F30 | **Update by itself at night** (off unless the owner turns it on, in the app, the installer or `KRNL0_AUTO_UPDATE`): at 04:00 server time the updater installs a newer signed release the same way. |
+| F31 | **Status.** `GET /api/v1/server` reports `update`: current, latest, how this server updates (`one-click`, `command` with the exact command, or `none`), the job (requested, running with its step, done, failed, rolled back, with a plain reason), auto on/off, and the newest release's `minApp` and `protocol`. `krnl0 update` (status, `now`, `auto on|off`) does the same on the server. |
+| F32 | **Releases follow KRNL0.** The web app version lives in the file `web-version`. A scheduled workflow (and `gh workflow run follow-krnl0.yml`) opens a release PR when KRNL0 publishes a newer release; merging it tags the version and builds the draft; the owner's Publish moves `:latest` and makes it the release updaters see. No paid GitHub feature and no personal token. |
 | F20 | **Your data.** `krnl0 export <folder>` copies every document, time log and asset in plain files. Deleting `/data` removes everything; nothing is kept elsewhere. |
 
 ## Non-Functional Requirements
@@ -48,8 +57,10 @@ The server has **no terminal, no AI and no board CLI** for the website (owner de
 | NF5 | Security headers on every response: CSP without inline scripts, `frame-ancestors 'none'`, `nosniff`, `Referrer-Policy: same-origin` (no-referrer would make browsers send `Origin: null` on our own forms), a restrictive `Permissions-Policy`, COOP/CORP same-origin. HSTS only with a publicly trusted certificate of our own (`files`); the proxy decides in `proxy` mode (Caddy in the `domain` profile sends it); never in `self-signed` mode. |
 | NF6 | Request bodies have limits (JSON 20 MB, assets as F12); WebSocket messages are capped at 64 KB. |
 | NF7 | Logs never contain board content, passwords, tokens, session ids or recovery codes. |
-| NF8 | No outgoing connection except the update check (switchable). No telemetry. (Caddy, when the owner adds it, talks to Let's Encrypt.) |
+| NF8 | No outgoing connection except the update check (switchable; off also stops night updates) and, while an update runs, the updater's downloads: GitHub Releases, the image registry and Sigstore's trust root and transparency log. No telemetry. (Caddy, when the owner adds it, talks to Let's Encrypt.) |
 | NF9 | Each checkout uses its own data folder and port in development. |
+| NF11 | The privileged side (root helper, Docker updater) reads from server-writable places only *whether* to act (a request, auto on/off), never *what* to install or from where. It never follows links or writes as root in the server's data folder. |
+| NF12 | An update never loses data: backup first, health check after, automatic way back, and the backup kept. |
 | NF10 | A release has zero known vulnerabilities in runtime dependencies (`npm audit --omit=dev`). Bundles have SHA-256 checksums; the checksums and the image are signed (Sigstore keyless), and the image carries an SBOM and build provenance. |
 
 ## Not in this version
@@ -63,6 +74,9 @@ Terminal and AI on the website (dropped by the owner) · several users per serve
 - **UC-S3:** The owner opens KRNL0 on their phone through Tailscale (`files` mode with `tailscale cert`): no warning, the same board.
 - **UC-S4:** A laptop is stolen. The owner runs `krnl0 devices revoke <id>`; the laptop's next sync is refused.
 - **UC-S5:** The owner updates with `docker compose pull && docker compose up -d`. The server backs up, starts the new version, and open tabs are told to reload.
+- **UC-S7:** A Windows owner pastes one PowerShell line; Docker Desktop runs KRNL0 and its updater, and the browser opens the setup page.
+- **UC-S8:** In the KRNL0 app the owner sees "server 0.2.0 is out", types the password, and a minute later everything is synced on 0.2.0; had it failed, the server would be back on 0.1.0 with nothing lost.
+- **UC-S9:** The owner turns on "update by itself at night"; the next published release is installed at 04:00 and the app says so the next day.
 - **UC-S6:** A Raspberry Pi owner without Docker runs the one-line installer; KRNL0 runs as a service and `krnl0 doctor` shows everything green.
 
 ## User Stories
@@ -71,6 +85,8 @@ Terminal and AI on the website (dropped by the owner) · several users per serve
 - As a user, I want to choose website, app sync or both, so that I only run what I use.
 - As a user, I want every connection encrypted without being forced to buy a domain, so that my plans stay private at home.
 - As a phone user, I want to open KRNL0 in my browser, so that I do not need a phone app.
+- As an owner, I want to update my server with one click from the app, so that I never type commands to stay current.
+- As an owner, I want a failed update to put my server back by itself, so that updating is never risky.
 - As an owner, I want to revoke a lost device, so that a stolen laptop cannot read my board.
 
 ## Gherkin Scenarios (ATDD)
@@ -164,4 +180,37 @@ Feature: The server's own pages (F21)
     Then it gets the font without logging in
     When it requests "/_k0/x.js" or a path that leaves "/_k0/"
     Then it does not get a file
+
+Feature: One-click update (F24, F25, F26)
+  Scenario: Owner updates from the app
+    Given the server runs 0.1.0 with the updater and 0.2.0 is published and signed
+    When the owner sends the update with the right password
+    Then a backup is made, 0.2.0 starts and answers health, and the job says done
+  Scenario: Wrong password
+    When the update is sent with a wrong password
+    Then it is refused, counted against the login limit, and nothing is requested
+  Scenario: Signature from somewhere else
+    Given the release's signature names another workflow or tag
+    Then the updater changes nothing and the job says failed with the reason
+  Scenario: New version does not start
+    Given 0.2.0 does not answer health within 90 seconds
+    Then the server runs 0.1.0 again and the job says rolled back
+  Scenario: New version changed the data format, then failed
+    Then the backup from just before the update is restored and 0.1.0 starts
+  Scenario: Crash halfway (Docker)
+    Given "krnl0-old" exists and "krnl0" does not
+    When the updater starts
+    Then it puts "krnl0-old" back as "krnl0" and starts it
+
+Feature: Docker in one command (F28)
+  Scenario: A server started with docker run
+    Given a container "krnl0" with the volume "krnl0-data"
+    When the owner runs the installer
+    Then the new Compose server uses the same volume and the board is still there
+
+Feature: Releases follow KRNL0 (F32)
+  Scenario: KRNL0 publishes 0.14.0
+    When the follow workflow runs
+    Then a PR sets web-version to 0.14.0 and the next patch version, with tests run
 ```
+
