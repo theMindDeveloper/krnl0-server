@@ -24,6 +24,7 @@ import { UpdateChecker, type FetchFn } from './update/check.js'
 import { createApp, type AppContext } from './http/app.js'
 import { VERSION } from './version.js'
 import { log } from './log.js'
+import { box, colorOn, paint } from './cli/look.js'
 
 export const DATA_FORMAT = 1
 const DAY_MS = 24 * 3600_000
@@ -117,15 +118,15 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   const broadcast = hub.broadcast.bind(hub)
   const auth = new AuthStore(paths)
   const setup = new SetupCodeKeeper(newSetupCode, (code, expiresAt) => {
-    log.block([
-      '',
-      '  ┌──────────────────────────────────────────────────────────┐',
-      `  │  Setup code: ${code.padEnd(44)}│`,
-      `  │  ${`Valid until ${new Date(expiresAt).toISOString().slice(11, 16)} UTC. It creates the owner account.`.padEnd(56)}│`,
-      '  │  Or run on the server: krnl0 setup                       │',
-      '  └──────────────────────────────────────────────────────────┘',
-      '',
-    ].join('\n'))
+    // In the setup's look on a terminal (TermA's box); plain text in logs.
+    const p = paint(colorOn())
+    const until = new Date(expiresAt).toISOString().slice(11, 16)
+    const card = box(p, [
+      `${p.dim('Setup code')}  ${p.acid(p.bold(code))}`,
+      p.dim(`Valid until ${until} UTC. It creates the owner account.`),
+      p.dim('Or run on the server: krnl0 setup'),
+    ], 62)
+    log.block(['', ...card.split('\n').map((l) => `  ${l}`), ''].join('\n'))
   })
   const updates = new UpdateChecker(paths, cfg.updateCheck, opts.fetchFn)
   const docs = new DocStore(paths.docs, broadcast)
@@ -202,13 +203,16 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   updates.start()
 
   const t = tls.info()
+  // The setup's look on a terminal; plain words in logs (tests read them too).
+  const p = paint(colorOn())
+  const onOff = (v: boolean): string => (v ? p.acid('on') : p.dim('off'))
   const lines = [
     '',
-    `  KRNL0 server ${VERSION}`,
-    `  Website: ${cfg.website ? 'on' : 'off'}   App sync: ${cfg.appSync ? 'on' : 'off'}   Encryption: ${t.mode}`,
-    ...addressesOf(cfg, port).slice(0, 6).map((a, i) => `  ${i === 0 ? 'Open' : '    '}  ${a}`),
+    p.on ? `  ${p.badge(' KRNL0 ')} ${p.ink('server')} ${p.dim(VERSION)}` : `  KRNL0 server ${VERSION}`,
+    `  ${p.dim('Website:')} ${onOff(cfg.website)}   ${p.dim('App sync:')} ${onOff(cfg.appSync)}   ${p.dim('Encryption:')} ${p.ink(t.mode)}`,
+    ...addressesOf(cfg, port).slice(0, 6).map((a, i) => `  ${i === 0 ? p.dim('Open') : '    '}  ${i === 0 ? p.acid(a) : p.ink(a)}`),
   ]
-  if (t.fingerprint) lines.push(`  Fingerprint  ${t.fingerprint}`)
+  if (t.fingerprint) lines.push(`  ${p.dim('Fingerprint')}  ${p.ink(t.fingerprint)}`)
   if (cfg.tls.mode === 'proxy') lines.push(`  Listening on ${cfg.bind}:${port} for your reverse proxy.`)
   if (inDocker() && cfg.hosts.length === 0) lines.push('  Tip: set KRNL0_HOSTS to the address you open (e.g. 192.168.1.20) so the certificate covers it.')
   lines.push('')

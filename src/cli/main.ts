@@ -12,10 +12,12 @@ import { otpauthUri } from '../auth/totp.js'
 import { listBackups, makeBackup, pruneBackups, restoreBackup } from '../store/backup.js'
 import { fingerprintOf } from '../tls/selfsigned.js'
 import { UpdateChecker } from '../update/check.js'
-import { addressesOf, runningPid, startServer } from '../server.js'
+import { addressesOf, inDocker, runningPid, startServer } from '../server.js'
 import { PROTOCOL, VERSION } from '../version.js'
 import { ask, askChoice, askHidden, askYesNo, interactive, readStdin } from './prompt.js'
 import { formatChecks, runDoctor } from './doctor.js'
+import { colorOn, formatChecksColored, paint } from './look.js'
+import { runFancySetup } from './setup.js'
 import { helpTopic, TOPIC_NAMES } from './help.js'
 
 interface Parsed { args: string[]; flags: Map<string, string | true> }
@@ -113,6 +115,49 @@ async function cmdSetup(paths: DataPaths, p: Parsed): Promise<number> {
   let file = readConfigFile(paths.config)
   const ask$ = interactive() && !p.flags.has('yes')
   const cur = loadConfig(paths.config)
+
+  // On a real terminal with no answers given as flags: the designed setup.
+  const given = ['website', 'app-sync', 'tls', 'cert', 'key', 'hosts', 'tz', 'password-stdin'].some((f) => p.flags.has(f))
+  if (ask$ && !given && colorOn()) {
+    const auth = new AuthStore(paths)
+    await runFancySetup({
+      version: VERSION, website: cur.website, appSync: cur.appSync, mode: cur.tls.mode,
+      certFile: cur.tls.certFile ?? null, keyFile: cur.tls.keyFile ?? null, hosts: cur.hosts,
+      timeZone: cur.timeZone, hasOwner: auth.hasOwner(), inDocker: inDocker(),
+    }, async (a) => {
+      let f = setKey(setKey(file, 'website', a.website), 'appSync', a.appSync)
+      f = setKey(f, 'tls.mode', a.mode)
+      if (a.mode === 'files' && a.certFile && a.keyFile) { f = setKey(f, 'tls.certFile', resolve(a.certFile)); f = setKey(f, 'tls.keyFile', resolve(a.keyFile)) }
+      if (a.mode === 'proxy') { f = setKey(f, 'trustProxy', true); f = setKey(f, 'httpPort', null) }
+      f = setKey(f, 'hosts', a.hosts)
+      f = setKey(f, 'timeZone', a.timeZone)
+      ensureDir(paths.root)
+      writeConfigFile(paths.config, f)
+      if (a.password) await auth.setPassword(a.password)
+      const cfg = loadConfig(paths.config)
+      const caFile = join(paths.tls, 'ca.crt')
+      const fp = cfg.tls.mode === 'self-signed' && existsSync(caFile) ? fingerprintOf(readFileSync(caFile, 'utf8')) : null
+      const half = fp ? Math.ceil(fp.split(':').length / 2) : 0
+      const facts: Array<[string, string]> = [
+        ['website', cfg.website ? '◆ on' : 'off'],
+        ['app sync', cfg.appSync ? '◆ on' : 'off'],
+        ['encryption', cfg.tls.mode],
+        ...(fp ? [['fingerprint', fp.split(':').slice(0, half).join(':')] as [string, string], ['', `…:${fp.split(':').slice(half).join(':')}`] as [string, string]] : []),
+        ['time zone', cfg.timeZone],
+        ['data', paths.root],
+      ]
+      const running = runningPid(paths) !== null
+      return {
+        url: addressesOf(cfg, cfg.port)[0] ?? null,
+        facts,
+        checks: (await runDoctor(paths)).filter((c) => running || !/answering|running/i.test(c.title)),
+        next: running
+          ? 'Restart to apply: docker compose restart  ·  systemctl restart krnl0'
+          : inDocker() ? 'Start it: docker compose up -d' : 'Start it: krnl0 start   (or: systemctl start krnl0)',
+      }
+    })
+    return 0
+  }
 
   say('KRNL0 server setup')
   say('')
@@ -373,7 +418,7 @@ export async function main(argv: string[]): Promise<number> {
       case 'status': return await cmdStatus(paths, p)
       case 'doctor': {
         const checks = await runDoctor(paths)
-        say(formatChecks(checks))
+        say(colorOn() ? formatChecksColored(paint(true), checks) : formatChecks(checks))
         return checks.some((c) => c.status === 'fail') ? 1 : 0
       }
       case 'config': return await cmdConfig(paths, p)

@@ -34,6 +34,7 @@ The server has **no terminal, no AI and no board CLI** for the website (owner de
 | F19 | **Time zone.** The server's time zone is set in setup (`TZ`) and reported to clients, so day boundaries never fall back to UTC by accident. |
 | F21 | **The server's own pages** — setup, login, notices — in the KRNL0 look (designs *Setup* and *PhoneLogin*): phone first, a side panel with the cube, the address, the encryption and the fingerprint from 960 px. No scripts at all (CSP `script-src 'self'`); recovery-code and forgot-password help open in place (`<details>`). Their fonts, icon and picture come from the server itself under `/_k0/` (public, allow-listed names only; nothing else is served there). |
 | F22 | **The web app in a release** is the KRNL0 release's `krnl0-web-<version>.tar.gz` named by `KRNL0_WEB_VERSION`, used only when its SHA-256 matches the `.sha256` KRNL0 published. |
+| F23 | **The terminal look.** On a real terminal `krnl0 setup` asks one boxed question at a time (arrow keys, space, enter; numbers work too), shows the answered steps and the ones to come, and ends with DONE, a QR code of the address, the facts and the doctor's checks. Off a terminal (logs, pipes), with `--yes` or with flags, it is plain text; `NO_COLOR` turns colours off. |
 | F20 | **Your data.** `krnl0 export <folder>` copies every document, time log and asset in plain files. Deleting `/data` removes everything; nothing is kept elsewhere. |
 
 ## Non-Functional Requirements

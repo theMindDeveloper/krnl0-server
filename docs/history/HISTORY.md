@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-20 — The terminal look: setup, doctor and the start screen
+
+**Type:** Feature
+**PRs/Commits:** `feat/realtime-sync`
+**Files changed:** src/cli/look.ts, src/cli/setup.ts, src/cli/main.ts, src/server.ts, package.json (uqr), tests/look.test.ts, docs
+
+**Summary:** `krnl0 setup` on a real terminal in the owner's mix of the three drafts: the KRNL0 block letters, one boxed question at a time with arrow keys and space (Website / App sync, encryption, the address the certificate names — with Docker and Tailscale said plainly — and the time zone, the owner password), the path of answered steps, and a finish screen with DONE, a QR code of the address to open it on a phone, the facts and the `krnl0 doctor` checks. `krnl0 doctor` and the start screen (with the setup-code card) use the same colours. Logs, pipes, `--yes` and flags keep the plain typed setup. QR codes by `uqr` (MIT, no dependencies). Checked by driving the real setup in a pseudo-terminal and rendering it in xterm.js.
+
 ## 2026-11-20 — Designed pages, the web app in releases, sync hardening
 
 **Type:** Feature
