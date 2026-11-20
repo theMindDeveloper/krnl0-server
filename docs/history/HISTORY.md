@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-20 — Designed pages, the web app in releases, sync hardening
+
+**Type:** Feature
+**PRs/Commits:** `feat/realtime-sync`
+**Files changed:** src/http/pages.ts, src/http/app.ts, public/k0/*, Dockerfile, package.json, scripts/bundle.sh, .github/workflows/release.yml, src/store/docs.ts, src/sync/hub.ts, tests, docs
+
+**Summary:** Setup, login and notice pages in the KRNL0 look (designs *Setup*, *PhoneLogin*), still script-free; fonts (OFL), the app icon and the cube are served from `/_k0/` before login (allow-listed). The release bundles the KRNL0 web app only when its SHA-256 matches KRNL0's. Sync hardening found by the KRNL0 simulations: atomic revision-named document writes swept on start, gzip in both directions with an output limit, the server time in the WebSocket hello and pong, `X-KRNL0-Asset` on asset downloads, URL-decoded path segments (`board%3Ab1`). Requirements F21–F22; sync protocol and state machine in `docs/architecture/sync.md` (S11).
+
 ## 2026-11-20 — Real-browser forms, setup-code renewal, proxy defaults
 
 **Type:** Bug Fix

@@ -45,6 +45,8 @@ A tag `vX.Y.Z` builds a multi-arch image (Alpine, npm removed) (`ghcr.io/themind
 
 ## Decision S8 — UI waits for design drafts (2026-11-20)
 
+*Update (2026-11-20):* the owner picked the drafts. The setup, login and notice pages now follow *Setup* and *PhoneLogin* (`src/http/pages.ts`), still without scripts; their fonts and pictures ship in `public/k0/` and are served from `/_k0/`. The terminal setup look (TermA/B/C) is still waiting for its pick.
+
 The browser setup/login pages, the coloured terminal setup and the phone view are new UI. Until the owner picks drafts, the server serves plain unstyled notice pages and the CLI prints plain text. The API and the CLI are complete without them.
 
 ## Decision S9 — Protocol 1 (2026-11-20)
