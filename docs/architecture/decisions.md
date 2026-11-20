@@ -54,3 +54,13 @@ HTTP JSON under `/api/v1`, a WebSocket at `/api/v1/sync` for change notices only
 ## Decision S10 — Few runtime dependencies (2026-11-20)
 
 Runtime dependencies are `ws`, `zod` and `@peculiar/x509` (and their asn1 helpers). HTTP routing, cookies, rate limits, TOTP, Argon2id (Node's own crypto) and the CLI are written here. Every new runtime dependency needs a line in this file saying why.
+
+## Decision S11 — Real-time sync on revisioned documents, not a CRDT (2026-11-20)
+
+**Context.** The owner asked for near-real-time sync between the desktop app and the website, without conflicts or deadlocks, using the best open-source tools. The candidates were a CRDT (Yjs, Automerge) or the revisioned documents of protocol 1 with the app's existing three-way merge.
+
+**Decision.** Keep protocol 1 and harden it. Clients merge with KRNL0's `boardMerge` (the same code that already merges the CLI and the AI terminal into the open board); the server orders writes with revisions; the WebSocket pushes change notices immediately. Full state machine and failure table: [sync.md](sync.md).
+
+**Why not a CRDT.** KRNL0's state is plain JSON written whole by the app, the CLI and the AI. A CRDT would need a JSON↔CRDT bridge running next to `boardMerge` — two merge systems, and a bridge is where silent loss comes from (concurrent reorders of id lists, tombstone growth from whole-board re-diffs, old clients writing old shapes past migrations). CRDTs pay off for several people typing in the same text; KRNL0 is one owner on a few devices.
+
+**Hardening that comes with it.** (1) A document write is one atomic step: the body is written under its revision's file name, then the meta pointer is replaced, so a crash never pairs a new body with an old revision. (2) JSON bodies are gzip-compressed both ways (built-in zlib). (3) The protocol carries the server time in `hello`/`pong` so clients can measure clock offset.
