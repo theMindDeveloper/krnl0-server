@@ -53,7 +53,8 @@ On start the desktop compares `board.json` with the base: if the `sys` CLI chang
 | Situation | What the system does | Why it is safe |
 |---|---|---|
 | Two devices edit different things at once | Second upload gets 409, merges, uploads; both edits survive | Three-way merge per item and per field |
-| Two devices change the same field | The server's value (the first to arrive) wins; the other device's value stays one undo step away | Documented rule, identical everywhere |
+| One device deletes an item, another changes it | The changed item stays, whichever comes back first (KRNL0 Decision 53) | Nothing someone worked on is lost; a whole board deleted still goes and is kept aside |
+| Two devices change the same field | The later edit wins, in server time: each client stamps what it changes (time corrected by its measured offset, plus a fingerprint of the value) and the stamps travel inside the document as `syncStamps`. Without two valid stamps more than 3 s apart, the server's value (the first to arrive) stays. The other value stays one undo step away (KRNL0 Decision 53) | The server stores the stamps as part of the body: no protocol or schema change; stale stamps from older apps no longer match their value and are ignored |
 | Device offline for days | Keeps working locally; on reconnect: catch-up, merge, upload | Base persisted on disk / IndexedDB |
 | Connection drops mid-upload | The upload either landed (rev advanced: next notice/catch-up shows it, the client's base is updated) or not (retry). The server never half-applies | Server writes are atomic (one file per revision, then rename) |
 | Server crashes or restarts mid-write | On start the newest complete revision is the document; a half-written temp file is ignored | Write body as `<doc>.<rev>.json`, then flip the pointer atomically |
@@ -65,7 +66,7 @@ On start the desktop compares `board.json` with the base: if the `sys` CLI chang
 | Board created/renamed on another device | `boards` doc merges by board id; the board appears in the menu | Merge by id |
 | Same time-log entry sent twice (retry) | Stored once | Dedupe by UUID |
 | Image on a board missing on this device | Fetched by id on first display; upload of new images happens before the board that uses them | Assets are immutable by id |
-| Device clocks differ | Order comes only from server revisions. Timer displays use `startedAt`; each client measures its offset to the server clock (hello/pong) and shows a warning above 5 s | Wall clocks never decide a merge |
+| Device clocks differ | Order comes only from server revisions. Timer displays use `startedAt`; each client measures its offset to the server clock (hello/pong; a polling browser uses the `Date` header) and shows a warning above 5 s. Edit stamps are corrected by that offset before two edits of the same value are compared | A device's own clock never decides a merge |
 | Many quick edits (dragging) | Debounce + one upload in flight; the last state wins locally, intermediate states are never sent | Bounded traffic |
 | Large board | JSON bodies gzip-compressed both ways (typically 5–10× smaller) | Built-in zlib |
 | Board over 20 MB, file over its limit | Refused (413 / 400 invalid); the client pauses only that board, or keeps that file local, with the reason — never a retry loop | Limits are fixed and stated |
