@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-21 — 0.2.0 and 0.2.1 published
+
+**Type:** Release (published)
+**PRs/Commits:** #12, #13 (0.2.0), #15 (0.2.1, from the follow workflow)
+**Files changed:** docs/history/HISTORY.md
+
+**Summary:** 0.2.0 published after a real test of its draft: the Docker updater ran against the draft's signed files (Sigstore bundle v0.3, exact release.yml@v0.2.0 identity), pulled the image from GHCR by the digest in `release.json` and swapped 0.1.9 → 0.2.0 with its settings and a backup. `published.yml` then moved `:latest`, checked equal to `release.json`. KRNL0 0.14.0's Publish started `follow-krnl0.yml`, which opened 0.2.1 (website = KRNL0 0.14.0). Merging tagged it (`tag.yml` → `release.yml`); the draft verified (`krnl0 updater verify`: signature, 9 files, image runs 0.2.1 with the 0.14.0 website) and was published. Real one-click test: a 0.2.0 Docker server updated itself to 0.2.1 through `POST /api/v1/server/update` in 90 s, updater included, settings and backup kept. Note: the server checks for new versions once a day; Settings › Updates › Check now in the app asks at once.
+
 ## 2026-11-21 — Release 0.2.1: the website is KRNL0 0.14.0
 
 **Type:** Release
