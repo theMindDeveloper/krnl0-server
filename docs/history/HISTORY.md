@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-21 — Sync design: the latest edit wins a clash
+
+**Type:** Docs
+**PRs/Commits:** `docs/sync-latest-edit-wins`
+**Files changed:** docs/architecture/sync.md, docs/history/HISTORY.md
+
+**Summary:** The failure table follows KRNL0 Decision 53: two devices changing the same value while apart now keep the later edit (stamps in server time inside the document, `syncStamps`), an edit beats a delete, and a polling browser takes the server's time from the `Date` header. The server itself does not change: it stores the stamps as part of the body and checks only size and `schemaVersion`.
+
 ## 2026-11-21 — Release 0.2.0
 
 **Type:** Release
