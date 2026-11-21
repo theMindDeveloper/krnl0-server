@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-21 — 0.2.2 published
+
+**Type:** Release (published)
+**PRs/Commits:** #17 (from the follow workflow after KRNL0 0.14.1)
+**Files changed:** docs/history/HISTORY.md
+
+**Summary:** The website is KRNL0 0.14.1, which keeps the later edit when two devices changed the same value (KRNL0 Decision 53; its edit stamps travel inside the documents as `syncStamps`, which this server stores as part of the body). The draft verified (`krnl0 updater verify`: signature from release.yml@v0.2.2, 9 files, image runs 0.2.2 with the 0.14.1 website) and was published at 01:41 UTC; `:latest` was checked against `release.json`.
+
 ## 2026-11-21 — Release 0.2.2: the website is KRNL0 0.14.1
 
 **Type:** Release
