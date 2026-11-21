@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-21 — 0.2.3 published
+
+**Type:** Release (published)
+**PRs/Commits:** #19 (from the follow workflow after KRNL0 0.14.2)
+**Files changed:** docs/history/HISTORY.md
+
+**Summary:** The website is KRNL0 0.14.2: the board menu shows in Easy mode too and follows sync, so a board started on the website is always reachable. Draft verified (signature from release.yml@v0.2.3, 9 files, image runs 0.2.3 with the 0.14.2 website) and published; `:latest` was checked against `release.json`.
+
 ## 2026-11-21 — Release 0.2.3: the website is KRNL0 0.14.2
 
 **Type:** Release
