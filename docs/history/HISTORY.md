@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-21 — Release 0.2.1: the website is KRNL0 0.14.0
+
+**Type:** Release
+**PRs/Commits:** follow-krnl0 release PR
+**Files changed:** web-version, package.json, package-lock.json, CHANGELOG.md, docs/releases/v0.2.1.md, docs/history/HISTORY.md
+
+**Summary:** KRNL0 0.14.0 was published; this release pins its web app (checked against KRNL0's SHA-256 when the release is built). Merging tags v0.2.1 and builds the draft; the owner's Publish ships it to updaters.
+
 ## 2026-11-21 — Sync design: the latest edit wins a clash
 
 **Type:** Docs
