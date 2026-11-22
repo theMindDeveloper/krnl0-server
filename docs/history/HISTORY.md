@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-22 — 0.2.4 published
+
+**Type:** Release (published)
+**PRs/Commits:** #21 (from the follow workflow after KRNL0 0.15.0)
+**Files changed:** docs/history/HISTORY.md
+
+**Summary:** The website is KRNL0 0.15.0: a Calendar you can read, events that happen once, one way to move everything onto the Calendar, the phone's Today and full-screen views, and the layout menu. Draft verified (`krnl0 updater verify`: signature from release.yml@v0.2.4, 9 files match; the Linux bundle is 0.2.4 and carries the 0.15.0 website) and published at 09:52 UTC; `:latest` was checked against `release.json`. The image was not started this time (Docker was not running on the release computer); its digest on GHCR equals `release.json`. The follow PR's own CI run shows "failure" with no jobs (it stops when the PR merges, as with 0.2.3); the follow workflow's typecheck and tests passed, and CI on `main` passed after the merge.
+
 ## 2026-11-22 — Release 0.2.4: the website is KRNL0 0.15.0
 
 **Type:** Release
