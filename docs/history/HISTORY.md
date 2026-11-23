@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-23 — 0.2.5 published
+
+**Type:** Release (published)
+**PRs/Commits:** #23 (from the follow workflow after KRNL0 0.16.0)
+**Files changed:** docs/history/HISTORY.md
+
+**Summary:** The website is KRNL0 0.16.0: Today on one phone screen (date, the day on the clock, one timer), Todos and More tabs, What's new that fits a phone, and the other calendars shown beside your plans (they are synced by the desktop app; the server running calendars itself is planned for later). Release and CI runs green, signature checked in CI; `release.json` pins web 0.16.0 and the image digest `sha256:1f1ca71f…`; published at 05:39 UTC and `:latest` checked against that digest.
+
 ## 2026-11-23 — Release 0.2.5: the website is KRNL0 0.16.0
 
 **Type:** Release
