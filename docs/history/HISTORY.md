@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-23 — 0.2.6 published
+
+**Type:** Release (published)
+**PRs/Commits:** #25, tag `v0.2.6`
+**Files changed:** docs/history/HISTORY.md
+
+**Summary:** Ships KRNL0 0.16.1's website. The owner asked for the whole train to run. The release build passed; `release.json` says server 0.2.6, web 0.16.1 and the signed image digest; the release was published and `:latest` was checked against that digest. (The CI run on the follow PR's own branch started no jobs; CI on `main` after the merge passed. A failing CI on a dependency bot's PR is unrelated.)
+
 ## 2026-11-23 — Release 0.2.6: the website is KRNL0 0.16.1
 
 **Type:** Release
