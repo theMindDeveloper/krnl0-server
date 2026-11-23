@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.7 — 2026-11-23
+
+- The website is KRNL0 0.16.2.
+
 ## 0.2.6 — 2026-11-23
 
 - The website is KRNL0 0.16.1.
