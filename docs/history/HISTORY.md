@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-25 — 0.2.10 published
+
+**Type:** Release (published)
+**PRs/Commits:** #32, tag `v0.2.10`
+**Files changed:** docs/history/HISTORY.md
+
+**Summary:** Ships KRNL0 0.17.2's website (one touch rule: hold, then drag; cards above the keyboard; the first layout is Reset's). The release build passed; `updater verify` on the downloaded draft: signed by release.yml@refs/tags/v0.2.10, 9 files match, `release.json` says server 0.2.10, web 0.17.2. The owner said yes; the release was published.
+
 ## 2026-11-25 — Release 0.2.10: the website is KRNL0 0.17.2
 
 **Type:** Release
