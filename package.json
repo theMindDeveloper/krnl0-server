@@ -1,6 +1,6 @@
 {
   "name": "krnl0-server",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Self-hosted KRNL0: the website and sync for the KRNL0 app, on your own server",
   "license": "MIT",
   "author": {
