@@ -2,6 +2,14 @@
 
 Every merge to `main` gets an entry here (AGENTS.md rule 2).
 
+## 2026-11-25 — 0.2.8 published
+
+**Type:** Release (published)
+**PRs/Commits:** #28, tag `v0.2.8`
+**Files changed:** docs/history/HISTORY.md
+
+**Summary:** Ships KRNL0 0.17.0's website. The release build passed; `updater verify` on the downloaded draft: signed by release.yml@refs/tags/v0.2.8, 9 files match, `release.json` says server 0.2.8, web 0.17.0. The owner said yes; the release was published and `:latest` was checked against the signed digest (sha256:98555547…). (The CI run on the follow PR's own branch started no jobs; CI on `main` after the merge passed.)
+
 ## 2026-11-25 — Release 0.2.8: the website is KRNL0 0.17.0
 
 **Type:** Release
